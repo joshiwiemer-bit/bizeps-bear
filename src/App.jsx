@@ -6,7 +6,6 @@ import {
   Lock, LogOut, ShieldCheck, Share2, KeyRound, Eye
 } from 'lucide-react';
 
-// --- 20 FESTE TEST-KUNDEN (Tester 1 bis Tester 20) ---
 const INITIAL_CLIENTS = [
   { id: 'coach', name: 'Ich (Coach / Eigenes Training)', role: 'Coach', goal: 'Eigenes Training', pin: '9999' },
   { id: 'tester1', name: 'Tester 1', role: 'Kunde', goal: 'Hypertrophie', pin: '1001' },
@@ -26,7 +25,7 @@ const INITIAL_CLIENTS = [
   { id: 'tester15', name: 'Tester 15', role: 'Kunde', goal: 'Athletik', pin: '1015' },
   { id: 'tester16', name: 'Tester 16', role: 'Kunde', goal: 'Hypertrophie', pin: '1016' },
   { id: 'tester17', name: 'Tester 17', role: 'Kunde', goal: 'Kraftaufbau', pin: '1017' },
-  { id: 'tester18', name: 'PookiePAvel', role: 'Kunde', goal: 'Fettabbau', pin: '6767' },
+  { id: 'tester18', name: 'PookiePavel', role: 'Kunde', goal: 'Fettabbau', pin: '6767' },
   { id: 'tester19', name: 'Aaron', role: 'Kunde', goal: 'Reha / Physio', pin: '8787' },
   { id: 'tester20', name: 'Cassian', role: 'Kunde', goal: 'Athletik', pin: '7879' },
 ];
@@ -55,49 +54,47 @@ const MEASUREMENT_METRICS = [
 
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
-    const saved = localStorage.getItem('bb_v4_session');
+    const saved = localStorage.getItem('bb_v5_session');
     return saved ? JSON.parse(saved) : null;
   });
   const [pinInput, setPinInput] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [coachPin, setCoachPin] = useState(() => localStorage.getItem('bb_v4_coach_pin') || '9999');
+  const [coachPin, setCoachPin] = useState(() => localStorage.getItem('bb_v5_coach_pin') || '9999');
 
   const [activeTab, setActiveTab] = useState('workout');
   const [selectedClient, setSelectedClient] = useState('coach');
   const [lastSaved, setLastSaved] = useState('');
 
-  // --- STATE ---
   const [clients, setClients] = useState(() => {
-    const saved = localStorage.getItem('bb_v4_clients');
+    const saved = localStorage.getItem('bb_v5_clients');
     return saved ? JSON.parse(saved) : INITIAL_CLIENTS;
   });
 
   const [exercises, setExercises] = useState(() => {
-    const saved = localStorage.getItem('bb_v4_exercises');
+    const saved = localStorage.getItem('bb_v5_exercises');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [plans, setPlans] = useState(() => {
-    const saved = localStorage.getItem('bb_v4_plans');
+    const saved = localStorage.getItem('bb_v5_plans');
     return saved ? JSON.parse(saved) : INITIAL_PLANS;
   });
 
   const [measurements, setMeasurements] = useState(() => {
-    const saved = localStorage.getItem('bb_v4_measurements');
+    const saved = localStorage.getItem('bb_v5_measurements');
     return saved ? JSON.parse(saved) : {};
   });
 
   const [workoutLogs, setWorkoutLogs] = useState(() => {
-    const saved = localStorage.getItem('bb_v4_workout_logs');
+    const saved = localStorage.getItem('bb_v5_workout_logs');
     return saved ? JSON.parse(saved) : {};
   });
 
   const [checkupNotes, setCheckupNotes] = useState(() => {
-    const saved = localStorage.getItem('bb_v4_checkup_notes');
+    const saved = localStorage.getItem('bb_v5_checkup_notes');
     return saved ? JSON.parse(saved) : {};
   });
 
-  // URL Direkt-Link Check (?client=...)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlClient = params.get('client');
@@ -105,27 +102,27 @@ export default function App() {
       const session = { role: 'client', clientId: urlClient };
       setAuthSession(session);
       setSelectedClient(urlClient);
-      localStorage.setItem('bb_v4_session', JSON.stringify(session));
+      localStorage.setItem('bb_v5_session', JSON.stringify(session));
     }
   }, [clients]);
 
   useEffect(() => {
     if (authSession?.role === 'client') {
       setSelectedClient(authSession.clientId);
-      if (activeTab === 'plans' || activeTab === 'exercises') {
+      if (activeTab === 'exercises') {
         setActiveTab('workout');
       }
     }
   }, [authSession, activeTab]);
 
   useEffect(() => {
-    localStorage.setItem('bb_v4_clients', JSON.stringify(clients));
-    localStorage.setItem('bb_v4_exercises', JSON.stringify(exercises));
-    localStorage.setItem('bb_v4_plans', JSON.stringify(plans));
-    localStorage.setItem('bb_v4_measurements', JSON.stringify(measurements));
-    localStorage.setItem('bb_v4_workout_logs', JSON.stringify(workoutLogs));
-    localStorage.setItem('bb_v4_checkup_notes', JSON.stringify(checkupNotes));
-    localStorage.setItem('bb_v4_coach_pin', coachPin);
+    localStorage.setItem('bb_v5_clients', JSON.stringify(clients));
+    localStorage.setItem('bb_v5_exercises', JSON.stringify(exercises));
+    localStorage.setItem('bb_v5_plans', JSON.stringify(plans));
+    localStorage.setItem('bb_v5_measurements', JSON.stringify(measurements));
+    localStorage.setItem('bb_v5_workout_logs', JSON.stringify(workoutLogs));
+    localStorage.setItem('bb_v5_checkup_notes', JSON.stringify(checkupNotes));
+    localStorage.setItem('bb_v5_coach_pin', coachPin);
     const now = new Date();
     setLastSaved(now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
   }, [clients, exercises, plans, measurements, workoutLogs, checkupNotes, coachPin]);
@@ -141,7 +138,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v4_session', JSON.stringify(session));
+      localStorage.setItem('bb_v5_session', JSON.stringify(session));
       setPinInput('');
       return;
     }
@@ -151,16 +148,16 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v4_session', JSON.stringify(session));
+      localStorage.setItem('bb_v5_session', JSON.stringify(session));
       setPinInput('');
       return;
     }
 
-    setLoginError('Ungültiger PIN! (Coach-PIN ist 9999, Tester 1 hat z.B. 1001)');
+    setLoginError('Ungültiger PIN! (Coach: 9999, Tester: 1001-1020)');
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v4_session');
+    localStorage.removeItem('bb_v5_session');
     setAuthSession(null);
     setPinInput('');
     window.history.replaceState({}, document.title, window.location.pathname);
@@ -168,12 +165,12 @@ export default function App() {
 
   const switchToClientPreview = () => {
     if (selectedClient === 'coach') {
-      alert('Bitte wähle oben einen Tester/Kunden aus.');
+      alert('Bitte wähle oben einen Tester aus.');
       return;
     }
     const session = { role: 'client', clientId: selectedClient };
     setAuthSession(session);
-    localStorage.setItem('bb_v4_session', JSON.stringify(session));
+    localStorage.setItem('bb_v5_session', JSON.stringify(session));
   };
 
   const copyClientLink = (clientId) => {
@@ -183,16 +180,17 @@ export default function App() {
     alert(`Link für ${c?.name} kopiert!\nPIN: ${c?.pin}\n\nLink: ${url}`);
   };
 
-  // --- WORKOUT LOGGER STATE ---
+  // --- WORKOUT & EXERCISE ADD STATE ---
   const [activeWorkoutSets, setActiveWorkoutSets] = useState({});
   const [exerciseFeedback, setExerciseFeedback] = useState({});
   const [sessionMeta, setSessionMeta] = useState({ energyLevel: 8, sleepHours: 7.5, sessionNote: '' });
   const [restTimer, setRestTimer] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
 
+  // Form für neue Übung (jetzt sowohl für Coach als auch für Tester im Workout verfügbar!)
   const [customPlanEx, setCustomPlanEx] = useState({
-    name: '', muscle: 'Brust', equipment: 'Langhantel',
-    targetSets: 3, targetReps: '8-10', targetRpe: '8', tempo: '3-1-1-0', note: '', saveToDb: true
+    name: '', muscle: 'Brust', equipment: 'Frei',
+    targetSets: 3, targetReps: '8-10', targetRpe: '8', tempo: '3-1-1-0', note: ''
   });
 
   useEffect(() => {
@@ -247,36 +245,10 @@ export default function App() {
   const [videoSpeeds, setVideoSpeeds] = useState({});
   const [showBackupModal, setShowBackupModal] = useState(false);
 
-  const handleAddClient = (e) => {
-    e.preventDefault();
-    if (!isCoach || !newClient.name.trim()) return;
-    const cleanPin = newClient.pin.trim() || String(Math.floor(1000 + Math.random() * 9000));
-    const id = 'client_' + Date.now();
-    const created = {
-      id,
-      name: newClient.name.trim(),
-      role: 'Kunde',
-      goal: newClient.goal.trim() || 'Coaching',
-      pin: cleanPin
-    };
-    setClients(prev => [...prev, created]);
-    setPlans(prev => ({ ...prev, [id]: [] }));
-    setSelectedClient(id);
-    setNewClient({ name: '', goal: '', pin: '' });
-    setShowClientModal(false);
-  };
-
-  const handleDeleteClient = (id) => {
-    if (!isCoach || id === 'coach') return;
-    if (window.confirm('Diesen Kunden und seine Pläne wirklich löschen?')) {
-      setClients(prev => prev.filter(c => c.id !== id));
-      if (selectedClient === id) setSelectedClient('coach');
-    }
-  };
-
+  // Übung hinzufügen (Funktioniert jetzt für Coach UND Tester im Workout)
   const handleAddCustomExerciseToPlan = (e) => {
     e.preventDefault();
-    if (!isCoach || !customPlanEx.name.trim()) return;
+    if (!customPlanEx.name.trim()) return;
 
     const planEntryId = 'plan_ex_' + Date.now();
     const newPlanItem = {
@@ -289,63 +261,18 @@ export default function App() {
       targetRpe: customPlanEx.targetRpe || '8',
       tempo: customPlanEx.tempo || '',
       note: customPlanEx.note || '',
-      lastLog: 'Noch kein Eintrag'
+      lastLog: 'Neu'
     };
 
     setPlans(prev => ({
       ...prev,
       [selectedClient]: [...(prev[selectedClient] || []), newPlanItem]
     }));
-
-    if (customPlanEx.saveToDb) {
-      const exists = exercises.some(ex => ex.name.toLowerCase() === customPlanEx.name.trim().toLowerCase());
-      if (!exists) {
-        setExercises(prev => [
-          ...prev,
-          {
-            id: 'db_ex_' + Date.now(),
-            name: customPlanEx.name.trim(),
-            muscle: customPlanEx.muscle.trim() || 'Allgemein',
-            equipment: customPlanEx.equipment.trim() || 'Frei',
-            cues: customPlanEx.note || '',
-            mistakes: ''
-          }
-        ]);
-      }
-    }
 
     setCustomPlanEx({
-      name: '',
-      muscle: customPlanEx.muscle,
-      equipment: customPlanEx.equipment,
-      targetSets: 3,
-      targetReps: '8-10',
-      targetRpe: '8',
-      tempo: '3-1-1-0',
-      note: '',
-      saveToDb: true
+      name: '', muscle: 'Brust', equipment: 'Frei',
+      targetSets: 3, targetReps: '8-10', targetRpe: '8', tempo: '3-1-1-0', note: ''
     });
-  };
-
-  const handleAddDbExerciseToPlan = (ex) => {
-    if (!isCoach) return;
-    const planEntryId = 'plan_ex_' + Date.now() + Math.random().toString(36).slice(2, 5);
-    const newPlanItem = {
-      id: planEntryId,
-      name: ex.name,
-      muscle: ex.muscle || 'Allgemein',
-      equipment: ex.equipment || 'Frei',
-      targetSets: 3,
-      targetReps: '8-10',
-      targetRpe: '8',
-      tempo: '3-1-1-0',
-      note: ex.cues || '',
-      lastLog: 'Noch kein Eintrag'
-    };
-    setPlans(prev => ({
-      ...prev,
-      [selectedClient]: [...(prev[selectedClient] || []), newPlanItem]
-    }));
   };
 
   const handleUpdatePlanItem = (itemId, field, value) => {
@@ -359,7 +286,7 @@ export default function App() {
   };
 
   const handleRemovePlanItem = (itemId) => {
-    if (!isCoach) return;
+    // Sowohl Coach als auch Tester dürfen im Notfall eine Übung aus ihrer Session löschen
     setPlans(prev => ({
       ...prev,
       [selectedClient]: (prev[selectedClient] || []).filter(item => item.id !== itemId)
@@ -425,7 +352,7 @@ export default function App() {
   const finishWorkout = () => {
     const currentPlan = plans[selectedClient] || [];
     if (currentPlan.length === 0) {
-      alert('Es sind noch keine Übungen im Trainingsplan hinterlegt.');
+      alert('Es sind keine Übungen im Training vorhanden.');
       return;
     }
 
@@ -507,11 +434,6 @@ export default function App() {
     setShowNewExerciseModal(false);
   };
 
-  const handleDeleteDbExercise = (id) => {
-    if (!isCoach) return;
-    setExercises(prev => prev.filter(ex => ex.id !== id));
-  };
-
   const exportBackup = () => {
     const data = { clients, exercises, plans, measurements, workoutLogs, checkupNotes };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -542,21 +464,6 @@ export default function App() {
       }
     };
     reader.readAsText(file);
-  };
-
-  const clearAllData = () => {
-    if (!isCoach) return;
-    if (window.confirm('Wirklich ALLE Daten zurücksetzen?')) {
-      localStorage.clear();
-      setClients(INITIAL_CLIENTS);
-      setExercises([]);
-      setPlans(INITIAL_PLANS);
-      setMeasurements({});
-      setWorkoutLogs({});
-      setCheckupNotes({});
-      setSelectedClient('coach');
-      setShowBackupModal(false);
-    }
   };
 
   const clientMeasurements = useMemo(() => {
@@ -621,13 +528,13 @@ export default function App() {
   const visibleTabs = isCoach
     ? [
         { id: 'workout', label: 'Workout-Logger', icon: Dumbbell },
-        { id: 'plans', label: 'Trainingsplan bauen (Coach)', icon: Calendar },
+        { id: 'plans', label: 'Trainingsplan verwalten', icon: Calendar },
         { id: 'checkup', label: 'Wochen-Check-Up & Videos', icon: HeartPulse },
         { id: 'body', label: 'Körper & Umfänge', icon: TrendingUp },
-        { id: 'exercises', label: 'Übungsdatenbank (Coach)', icon: BookOpen },
+        { id: 'exercises', label: 'Übungsdatenbank', icon: BookOpen },
       ]
     : [
-        { id: 'workout', label: 'Mein Training', icon: Dumbbell },
+        { id: 'workout', label: 'Mein Training & Übungen', icon: Dumbbell },
         { id: 'body', label: 'Meine Umfänge', icon: TrendingUp },
         { id: 'checkup', label: 'Mein Check-Up', icon: HeartPulse },
       ];
@@ -695,13 +602,6 @@ export default function App() {
                     </button>
                   </>
                 )}
-
-                <button
-                  onClick={() => setShowClientModal(true)}
-                  className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition"
-                >
-                  <UserPlus className="w-4 h-4" /> + Neu
-                </button>
               </>
             ) : (
               <div className="flex items-center gap-2 bg-zinc-800/80 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-zinc-300">
@@ -760,7 +660,7 @@ export default function App() {
                     {isCoach ? `Training loggen – ${currentClientObj?.name}` : 'Mein heutiges Training'}
                   </h2>
                   <p className="text-xs text-zinc-400">
-                    Trage Sätze, Gewichte, Schmerzen und Videos ein.
+                    Trage Sätze, Gewichte und Schmerzen ein. Du kannst unten auch direkt neue Übungen hinzufügen oder tauschen.
                   </p>
                 </div>
                 <button
@@ -803,56 +703,55 @@ export default function App() {
               </div>
             </div>
 
-            {isCoach && (
-              <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-900/90 border border-violet-500/30 rounded-2xl p-4 space-y-3">
-                <div className="text-xs font-bold text-violet-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Plus className="w-4 h-4" /> [Coach] Übung zum Plan hinzufügen
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                  <input
-                    type="text" required placeholder="Übungsname..."
-                    value={customPlanEx.name}
-                    onChange={(e) => setCustomPlanEx({ ...customPlanEx, name: e.target.value })}
-                    className="sm:col-span-4 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="text" placeholder="Muskel"
-                    value={customPlanEx.muscle}
-                    onChange={(e) => setCustomPlanEx({ ...customPlanEx, muscle: e.target.value })}
-                    className="sm:col-span-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="number" min="1" placeholder="Sätze"
-                    value={customPlanEx.targetSets}
-                    onChange={(e) => setCustomPlanEx({ ...customPlanEx, targetSets: e.target.value })}
-                    className="sm:col-span-1 bg-zinc-800 border border-zinc-700 rounded-xl px-2.5 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="text" placeholder="Wdh"
-                    value={customPlanEx.targetReps}
-                    onChange={(e) => setCustomPlanEx({ ...customPlanEx, targetReps: e.target.value })}
-                    className="sm:col-span-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="text" placeholder="Hinweis"
-                    value={customPlanEx.note}
-                    onChange={(e) => setCustomPlanEx({ ...customPlanEx, note: e.target.value })}
-                    className="sm:col-span-3 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
-                  />
-                </div>
-                <div className="flex justify-end pt-1">
-                  <button type="submit" className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold">
-                    + Hinzufügen
-                  </button>
-                </div>
-              </form>
-            )}
+            {/* NEUE ÜBUNG / ÜBUNG TAUSCHEN DIREKT IM WORKOUT (FÜR ALLE FREIGESCHALTET) */}
+            <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-900/90 border border-violet-500/30 rounded-2xl p-4 space-y-3">
+              <div className="text-xs font-bold text-violet-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Plus className="w-4 h-4" /> Übung hinzufügen oder tauschen (Satz direkt tracken)
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                <input
+                  type="text" required placeholder="Übungsname (z.B. Dips, Curls)..."
+                  value={customPlanEx.name}
+                  onChange={(e) => setCustomPlanEx({ ...customPlanEx, name: e.target.value })}
+                  className="sm:col-span-4 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
+                />
+                <input
+                  type="text" placeholder="Muskel"
+                  value={customPlanEx.muscle}
+                  onChange={(e) => setCustomPlanEx({ ...customPlanEx, muscle: e.target.value })}
+                  className="sm:col-span-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
+                />
+                <input
+                  type="number" min="1" placeholder="Sätze"
+                  value={customPlanEx.targetSets}
+                  onChange={(e) => setCustomPlanEx({ ...customPlanEx, targetSets: e.target.value })}
+                  className="sm:col-span-1 bg-zinc-800 border border-zinc-700 rounded-xl px-2.5 py-2 text-sm text-white"
+                />
+                <input
+                  type="text" placeholder="Wdh"
+                  value={customPlanEx.targetReps}
+                  onChange={(e) => setCustomPlanEx({ ...customPlanEx, targetReps: e.target.value })}
+                  className="sm:col-span-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
+                />
+                <input
+                  type="text" placeholder="Notiz"
+                  value={customPlanEx.note}
+                  onChange={(e) => setCustomPlanEx({ ...customPlanEx, note: e.target.value })}
+                  className="sm:col-span-3 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div className="flex justify-end pt-1">
+                <button type="submit" className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold flex items-center gap-1.5">
+                  <Plus className="w-4 h-4" /> Übung zum Training hinzufügen
+                </button>
+              </div>
+            </form>
 
             {(plans[selectedClient] || []).length === 0 ? (
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-10 text-center space-y-3">
                 <Dumbbell className="w-10 h-10 text-violet-400 mx-auto opacity-80" />
                 <h3 className="text-base font-bold text-white">Keine Übungen im Plan</h3>
-                <p className="text-xs text-zinc-400">Der Coach hat für diesen Tester noch keine Übungen eingetragen.</p>
+                <p className="text-xs text-zinc-400">Füge oben über das Formular deine erste Übung hinzu!</p>
               </div>
             ) : (
               (plans[selectedClient] || []).map((planItem, idx) => {
@@ -893,14 +792,13 @@ export default function App() {
                             {planItem.lastLog || 'Neu'}
                           </span>
                         </div>
-                        {isCoach && (
-                          <button
-                            onClick={() => handleRemovePlanItem(planItem.id)}
-                            className="p-2 rounded-lg bg-zinc-800 hover:bg-rose-950 text-zinc-400 hover:text-rose-400 transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleRemovePlanItem(planItem.id)}
+                          title="Übung entfernen"
+                          className="p-2 rounded-lg bg-zinc-800 hover:bg-rose-950 text-zinc-400 hover:text-rose-400 transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
@@ -955,28 +853,24 @@ export default function App() {
                             >
                               <Check className="w-4 h-4" />
                             </button>
-                            {isCoach && (
-                              <button
-                                type="button"
-                                onClick={() => removeSetFromWorkoutExercise(planItem.id, sIdx)}
-                                className="w-8 h-8 rounded-lg bg-zinc-800 text-zinc-500 hover:text-rose-400 flex items-center justify-center"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => removeSetFromWorkoutExercise(planItem.id, sIdx)}
+                              className="w-8 h-8 rounded-lg bg-zinc-800 text-zinc-500 hover:text-rose-400 flex items-center justify-center"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
                       ))}
 
-                      {isCoach && (
-                        <button
-                          type="button"
-                          onClick={() => addSetToWorkoutExercise(planItem.id)}
-                          className="text-xs text-violet-400 hover:text-violet-300 font-semibold flex items-center gap-1 pt-1 pl-1"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Satz hinzufügen
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => addSetToWorkoutExercise(planItem.id)}
+                        className="text-xs text-violet-400 hover:text-violet-300 font-semibold flex items-center gap-1 pt-1 pl-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Satz hinzufügen
+                      </button>
                     </div>
 
                     <div className="pt-3 border-t border-zinc-800/80 space-y-3">
@@ -1062,7 +956,7 @@ export default function App() {
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Plan für {currentClientObj?.name} bearbeiten</h2>
+                  <h2 className="text-lg font-bold text-white">Plan verwalten für {currentClientObj?.name}</h2>
                   <p className="text-xs text-zinc-400">PIN dieses Testers: <strong className="text-violet-300">{currentClientObj?.pin}</strong></p>
                 </div>
                 {selectedClient !== 'coach' && (
@@ -1076,7 +970,7 @@ export default function App() {
               </div>
 
               <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-bold text-violet-300">✍️ Übung hinzufügen</h3>
+                <h3 className="text-sm font-bold text-violet-300">✍️ Übung zum Plan hinzufügen</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <input
                     type="text" required placeholder="Übungsname"
