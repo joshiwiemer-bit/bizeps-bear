@@ -1,11 +1,28 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
 import { 
   Dumbbell, Users, BookOpen, Calendar, Plus, Check, Clock, 
   AlertTriangle, Activity, TrendingUp, Save, Download, Upload, 
   RotateCcw, Search, Trash2, HeartPulse, Video, UserPlus, X, 
-  Lock, LogOut, ShieldCheck, Share2, KeyRound, Eye
+  Lock, LogOut, ShieldCheck, Share2, KeyRound, Eye, Cloud, CloudOff
 } from 'lucide-react';
 
+// --- DEINE FIREBASE CONFIG ---
+const firebaseConfig = {
+  apiKey: "AIzaSyAy9EauBU_ZpYQOVafdINZLRUHttCBpe4U",
+  authDomain: "bizepsbear.firebaseapp.com",
+  projectId: "bizepsbear",
+  storageBucket: "bizepsbear.firebasestorage.app",
+  messagingSenderId: "773561568629",
+  appId: "1:773561568629:web:59510580fc266ff980573c",
+  measurementId: "G-4M79M7LP8W"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// --- INITIALE DATEN (FALLS DATENBANK LEER IST) ---
 const INITIAL_CLIENTS = [
   { id: 'coach', name: 'Ich (Coach / Eigenes Training)', role: 'Coach', goal: 'Eigenes Training', pin: '9999' },
   { id: 'tester1', name: 'Tester 1', role: 'Kunde', goal: 'Hypertrophie', pin: '1001' },
@@ -25,9 +42,9 @@ const INITIAL_CLIENTS = [
   { id: 'tester15', name: 'Tester 15', role: 'Kunde', goal: 'Athletik', pin: '1015' },
   { id: 'tester16', name: 'Tester 16', role: 'Kunde', goal: 'Hypertrophie', pin: '1016' },
   { id: 'tester17', name: 'Tester 17', role: 'Kunde', goal: 'Kraftaufbau', pin: '1017' },
-  { id: 'tester18', name: 'PookiePavel', role: 'Kunde', goal: 'Fettabbau', pin: '6767' },
-  { id: 'tester19', name: 'Aaron', role: 'Kunde', goal: 'Reha / Physio', pin: '8787' },
-  { id: 'tester20', name: 'Cassian', role: 'Kunde', goal: 'Athletik', pin: '7879' },
+  { id: 'tester18', name: 'Pookiepavel', role: 'Kunde', goal: 'Fettabbau', pin: '1018' },
+  { id: 'tester19', name: 'Aaron', role: 'Kunde', goal: 'Reha / Physio', pin: '1019' },
+  { id: 'tester20', name: 'Cassian', role: 'Kunde', goal: 'Athletik', pin: '1020' },
 ];
 
 const INITIAL_PLANS = {
@@ -54,47 +71,84 @@ const MEASUREMENT_METRICS = [
 
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
-    const saved = localStorage.getItem('bb_v5_session');
+    const saved = localStorage.getItem('bb_v6_session');
     return saved ? JSON.parse(saved) : null;
   });
   const [pinInput, setPinInput] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [coachPin, setCoachPin] = useState(() => localStorage.getItem('bb_v5_coach_pin') || '9999');
+  const [coachPin, setCoachPin] = useState('9999');
 
   const [activeTab, setActiveTab] = useState('workout');
   const [selectedClient, setSelectedClient] = useState('coach');
-  const [lastSaved, setLastSaved] = useState('');
+  const [syncStatus, setSyncStatus] = useState('Lade Cloud...');
 
-  const [clients, setClients] = useState(() => {
-    const saved = localStorage.getItem('bb_v5_clients');
-    return saved ? JSON.parse(saved) : INITIAL_CLIENTS;
-  });
+  // --- APP STATE ---
+  const [clients, setClients] = useState(INITIAL_CLIENTS);
+  const [exercises, setExercises] = useState([]);
+  const [plans, setPlans] = useState(INITIAL_PLANS);
+  const [measurements, setMeasurements] = useState({});
+  const [workoutLogs, setWorkoutLogs] = useState({});
+  const [checkupNotes, setCheckupNotes] = useState({});
 
-  const [exercises, setExercises] = useState(() => {
-    const saved = localStorage.getItem('bb_v5_exercises');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // LIVE FIRESTORE SYNCHRONIZATION
+  useEffect(() => {
+    const docRef = doc(db, "bizeps_baer", "database");
+    
+    // Echtzeit-Listener (sobald sich in der Cloud was ändert, aktualisiert sich die App sofort)
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.clients) setClients(data.clients);
+        if (data.exercises) setExercises(data.exercises);
+        if (data.plans) setPlans(data.plans);
+        if (data.measurements) setMeasurements(data.measurements);
+        if (data.workoutLogs) setWorkoutLogs(data.workoutLogs);
+        if (data.checkupNotes) setCheckupNotes(data.checkupNotes);
+        if (data.coachPin) setCoachPin(data.coachPin);
+        setSyncStatus('Live Sync aktiv');
+      } else {
+        // Initiales Speichern, falls Datenbank leer
+        setDoc(docRef, {
+          clients: INITIAL_CLIENTS,
+          exercises: [],
+          plans: INITIAL_PLANS,
+          measurements: {},
+          workoutLogs: {},
+          checkupNotes: {},
+          coachPin: '9999'
+        });
+        setSyncStatus('Initiiert');
+      }
+    }, (error) => {
+      console.error(error);
+      setSyncStatus('Offline-Modus');
+    });
 
-  const [plans, setPlans] = useState(() => {
-    const saved = localStorage.getItem('bb_v5_plans');
-    return saved ? JSON.parse(saved) : INITIAL_PLANS;
-  });
+    return () => unsubscribe();
+  }, []);
 
-  const [measurements, setMeasurements] = useState(() => {
-    const saved = localStorage.getItem('bb_v5_measurements');
-    return saved ? JSON.parse(saved) : {};
-  });
+  // Funktion zum Speichern in Firestore
+  const saveDataToCloud = async (newStates) => {
+    setSyncStatus('Speichere...');
+    try {
+      const docRef = doc(db, "bizeps_baer", "database");
+      await setDoc(docRef, {
+        clients: newStates.clients || clients,
+        exercises: newStates.exercises || exercises,
+        plans: newStates.plans || plans,
+        measurements: newStates.measurements || measurements,
+        workoutLogs: newStates.workoutLogs || workoutLogs,
+        checkupNotes: newStates.checkupNotes || checkupNotes,
+        coachPin: newStates.coachPin || coachPin
+      }, { merge: true });
+      setSyncStatus('Live Sync aktiv');
+    } catch (err) {
+      console.error(err);
+      setSyncStatus('Fehler beim Speichern');
+    }
+  };
 
-  const [workoutLogs, setWorkoutLogs] = useState(() => {
-    const saved = localStorage.getItem('bb_v5_workout_logs');
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  const [checkupNotes, setCheckupNotes] = useState(() => {
-    const saved = localStorage.getItem('bb_v5_checkup_notes');
-    return saved ? JSON.parse(saved) : {};
-  });
-
+  // URL Direkt-Link Check (?client=...)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlClient = params.get('client');
@@ -102,7 +156,7 @@ export default function App() {
       const session = { role: 'client', clientId: urlClient };
       setAuthSession(session);
       setSelectedClient(urlClient);
-      localStorage.setItem('bb_v5_session', JSON.stringify(session));
+      localStorage.setItem('bb_v6_session', JSON.stringify(session));
     }
   }, [clients]);
 
@@ -115,18 +169,6 @@ export default function App() {
     }
   }, [authSession, activeTab]);
 
-  useEffect(() => {
-    localStorage.setItem('bb_v5_clients', JSON.stringify(clients));
-    localStorage.setItem('bb_v5_exercises', JSON.stringify(exercises));
-    localStorage.setItem('bb_v5_plans', JSON.stringify(plans));
-    localStorage.setItem('bb_v5_measurements', JSON.stringify(measurements));
-    localStorage.setItem('bb_v5_workout_logs', JSON.stringify(workoutLogs));
-    localStorage.setItem('bb_v5_checkup_notes', JSON.stringify(checkupNotes));
-    localStorage.setItem('bb_v5_coach_pin', coachPin);
-    const now = new Date();
-    setLastSaved(now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
-  }, [clients, exercises, plans, measurements, workoutLogs, checkupNotes, coachPin]);
-
   const isCoach = authSession?.role === 'coach';
 
   const handlePinLogin = (e) => {
@@ -138,7 +180,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v5_session', JSON.stringify(session));
+      localStorage.setItem('bb_v6_session', JSON.stringify(session));
       setPinInput('');
       return;
     }
@@ -148,7 +190,7 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v5_session', JSON.stringify(session));
+      localStorage.setItem('bb_v6_session', JSON.stringify(session));
       setPinInput('');
       return;
     }
@@ -157,7 +199,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v5_session');
+    localStorage.removeItem('bb_v6_session');
     setAuthSession(null);
     setPinInput('');
     window.history.replaceState({}, document.title, window.location.pathname);
@@ -170,7 +212,7 @@ export default function App() {
     }
     const session = { role: 'client', clientId: selectedClient };
     setAuthSession(session);
-    localStorage.setItem('bb_v5_session', JSON.stringify(session));
+    localStorage.setItem('bb_v6_session', JSON.stringify(session));
   };
 
   const copyClientLink = (clientId) => {
@@ -180,14 +222,13 @@ export default function App() {
     alert(`Link für ${c?.name} kopiert!\nPIN: ${c?.pin}\n\nLink: ${url}`);
   };
 
-  // --- WORKOUT & EXERCISE ADD STATE ---
+  // --- WORKOUT & STATE HANDLERS ---
   const [activeWorkoutSets, setActiveWorkoutSets] = useState({});
   const [exerciseFeedback, setExerciseFeedback] = useState({});
   const [sessionMeta, setSessionMeta] = useState({ energyLevel: 8, sleepHours: 7.5, sessionNote: '' });
   const [restTimer, setRestTimer] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
 
-  // Form für neue Übung (jetzt sowohl für Coach als auch für Tester im Workout verfügbar!)
   const [customPlanEx, setCustomPlanEx] = useState({
     name: '', muscle: 'Brust', equipment: 'Frei',
     targetSets: 3, targetReps: '8-10', targetRpe: '8', tempo: '3-1-1-0', note: ''
@@ -245,7 +286,6 @@ export default function App() {
   const [videoSpeeds, setVideoSpeeds] = useState({});
   const [showBackupModal, setShowBackupModal] = useState(false);
 
-  // Übung hinzufügen (Funktioniert jetzt für Coach UND Tester im Workout)
   const handleAddCustomExerciseToPlan = (e) => {
     e.preventDefault();
     if (!customPlanEx.name.trim()) return;
@@ -264,10 +304,12 @@ export default function App() {
       lastLog: 'Neu'
     };
 
-    setPlans(prev => ({
-      ...prev,
-      [selectedClient]: [...(prev[selectedClient] || []), newPlanItem]
-    }));
+    const updatedPlans = {
+      ...plans,
+      [selectedClient]: [...(plans[selectedClient] || []), newPlanItem]
+    };
+    setPlans(updatedPlans);
+    saveDataToCloud({ plans: updatedPlans });
 
     setCustomPlanEx({
       name: '', muscle: 'Brust', equipment: 'Frei',
@@ -277,20 +319,23 @@ export default function App() {
 
   const handleUpdatePlanItem = (itemId, field, value) => {
     if (!isCoach) return;
-    setPlans(prev => ({
-      ...prev,
-      [selectedClient]: (prev[selectedClient] || []).map(item =>
+    const updatedPlans = {
+      ...plans,
+      [selectedClient]: (plans[selectedClient] || []).map(item =>
         item.id === itemId ? { ...item, [field]: value } : item
       )
-    }));
+    };
+    setPlans(updatedPlans);
+    saveDataToCloud({ plans: updatedPlans });
   };
 
   const handleRemovePlanItem = (itemId) => {
-    // Sowohl Coach als auch Tester dürfen im Notfall eine Übung aus ihrer Session löschen
-    setPlans(prev => ({
-      ...prev,
-      [selectedClient]: (prev[selectedClient] || []).filter(item => item.id !== itemId)
-    }));
+    const updatedPlans = {
+      ...plans,
+      [selectedClient]: (plans[selectedClient] || []).filter(item => item.id !== itemId)
+    };
+    setPlans(updatedPlans);
+    saveDataToCloud({ plans: updatedPlans });
   };
 
   const handleSetChange = (planItemId, setIndex, field, value) => {
@@ -371,21 +416,19 @@ export default function App() {
       };
     });
 
-    setPlans(prev => ({
-      ...prev,
-      [selectedClient]: (prev[selectedClient] || []).map(item => {
-        const sets = (activeWorkoutSets[item.id] || []).filter(s => s.weight || s.reps);
-        if (sets.length > 0) {
-          const topSet = sets[sets.length - 1];
-          return {
-            ...item,
-            lastLog: `${topSet.weight || 0} kg × ${topSet.reps || 0}${topSet.rpe ? ` @ RPE ${topSet.rpe}` : ''}`
-          };
-        }
-        return item;
-      })
-    }));
+    const updatedPlansForClient = (plans[selectedClient] || []).map(item => {
+      const sets = (activeWorkoutSets[item.id] || []).filter(s => s.weight || s.reps);
+      if (sets.length > 0) {
+        const topSet = sets[sets.length - 1];
+        return {
+          ...item,
+          lastLog: `${topSet.weight || 0} kg × ${topSet.reps || 0}${topSet.rpe ? ` @ RPE ${topSet.rpe}` : ''}`
+        };
+      }
+      return item;
+    });
 
+    const updatedPlans = { ...plans, [selectedClient]: updatedPlansForClient };
     const newLog = {
       id: 'w_' + Date.now(),
       date: new Date().toISOString().split('T')[0],
@@ -395,12 +438,16 @@ export default function App() {
       exercises: loggedExercises
     };
 
-    setWorkoutLogs(prev => ({
-      ...prev,
-      [selectedClient]: [newLog, ...(prev[selectedClient] || [])]
-    }));
+    const updatedLogs = {
+      ...workoutLogs,
+      [selectedClient]: [newLog, ...(workoutLogs[selectedClient] || [])]
+    };
 
-    alert('Training erfolgreich gespeichert!');
+    setPlans(updatedPlans);
+    setWorkoutLogs(updatedLogs);
+    saveDataToCloud({ plans: updatedPlans, workoutLogs: updatedLogs });
+
+    alert('Training erfolgreich in der Cloud gespeichert!');
     setActiveTab('checkup');
   };
 
@@ -411,59 +458,17 @@ export default function App() {
       parsed[m.key] = newMeasure[m.key] !== '' ? parseFloat(newMeasure[m.key]) : 0;
     });
 
-    setMeasurements(prev => {
-      const clientList = [...(prev[selectedClient] || []), parsed].sort((a, b) => a.date.localeCompare(b.date));
-      return { ...prev, [selectedClient]: clientList };
-    });
+    const clientList = [...(measurements[selectedClient] || []), parsed].sort((a, b) => a.date.localeCompare(b.date));
+    const updatedMeasurements = { ...measurements, [selectedClient]: clientList };
+    setMeasurements(updatedMeasurements);
+    saveDataToCloud({ measurements: updatedMeasurements });
     setShowMeasureModal(false);
   };
 
-  const handleAddExerciseToDb = (e) => {
-    e.preventDefault();
-    if (!isCoach || !newExercise.name.trim()) return;
-    const created = {
-      id: 'db_ex_' + Date.now(),
-      name: newExercise.name.trim(),
-      muscle: newExercise.muscle.trim() || 'Allgemein',
-      equipment: newExercise.equipment.trim() || 'Frei',
-      cues: newExercise.cues.trim(),
-      mistakes: newExercise.mistakes.trim()
-    };
-    setExercises(prev => [...prev, created]);
-    setNewExercise({ name: '', muscle: '', equipment: '', cues: '', mistakes: '' });
-    setShowNewExerciseModal(false);
-  };
-
-  const exportBackup = () => {
-    const data = { clients, exercises, plans, measurements, workoutLogs, checkupNotes };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bizeps-baer-backup-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-  };
-
-  const importBackup = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target.result);
-        if (parsed.clients) setClients(parsed.clients);
-        if (parsed.exercises) setExercises(parsed.exercises);
-        if (parsed.plans) setPlans(parsed.plans);
-        if (parsed.measurements) setMeasurements(parsed.measurements);
-        if (parsed.workoutLogs) setWorkoutLogs(parsed.workoutLogs);
-        if (parsed.checkupNotes) setCheckupNotes(parsed.checkupNotes);
-        alert('Daten erfolgreich importiert!');
-        setShowBackupModal(false);
-      } catch (err) {
-        alert('Fehler beim Lesen der Backup-Datei.');
-      }
-    };
-    reader.readAsText(file);
+  const handleUpdateCheckupNote = (val) => {
+    const updatedNotes = { ...checkupNotes, [selectedClient]: val };
+    setCheckupNotes(updatedNotes);
+    saveDataToCloud({ checkupNotes: updatedNotes });
   };
 
   const clientMeasurements = useMemo(() => {
@@ -485,7 +490,7 @@ export default function App() {
             </div>
             <h1 className="text-2xl font-black tracking-wider text-white pt-2">BIZEPS BÄR</h1>
             <span className="text-xs px-3 py-1 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 font-semibold">
-              Coaching & Performance Portal
+              Cloud Coaching Portal
             </span>
             <p className="text-xs text-zinc-400 pt-1">
               Gib deinen PIN ein (Coach: <code className="text-violet-400 font-bold">9999</code> | Tester 1–20: <code className="text-violet-400 font-bold">1001</code> bis <code className="text-violet-400 font-bold">1020</code>).
@@ -531,7 +536,6 @@ export default function App() {
         { id: 'plans', label: 'Trainingsplan verwalten', icon: Calendar },
         { id: 'checkup', label: 'Wochen-Check-Up & Videos', icon: HeartPulse },
         { id: 'body', label: 'Körper & Umfänge', icon: TrendingUp },
-        { id: 'exercises', label: 'Übungsdatenbank', icon: BookOpen },
       ]
     : [
         { id: 'workout', label: 'Mein Training & Übungen', icon: Dumbbell },
@@ -560,9 +564,10 @@ export default function App() {
                   </span>
                 )}
               </div>
-              <p className="text-xs text-zinc-400">
-                {isCoach ? 'Verwaltung für alle 20 Tester & Eigenes Training' : 'Dein persönlicher Trainingsbereich'}
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[11px] text-zinc-400">{syncStatus}</span>
+              </div>
             </div>
           </div>
 
@@ -614,7 +619,7 @@ export default function App() {
               onClick={() => setShowBackupModal(true)}
               className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition"
             >
-              <Download className="w-3.5 h-3.5 text-violet-400" /> Daten
+              <Download className="w-3.5 h-3.5 text-violet-400" /> Backup
             </button>
 
             <button
@@ -660,7 +665,7 @@ export default function App() {
                     {isCoach ? `Training loggen – ${currentClientObj?.name}` : 'Mein heutiges Training'}
                   </h2>
                   <p className="text-xs text-zinc-400">
-                    Trage Sätze, Gewichte und Schmerzen ein. Du kannst unten auch direkt neue Übungen hinzufügen oder tauschen.
+                    Trage Sätze, Gewichte und Schmerzen ein. Die Daten werden sofort mit der Cloud synchronisiert.
                   </p>
                 </div>
                 <button
@@ -703,14 +708,13 @@ export default function App() {
               </div>
             </div>
 
-            {/* NEUE ÜBUNG / ÜBUNG TAUSCHEN DIREKT IM WORKOUT (FÜR ALLE FREIGESCHALTET) */}
             <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-900/90 border border-violet-500/30 rounded-2xl p-4 space-y-3">
               <div className="text-xs font-bold text-violet-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Plus className="w-4 h-4" /> Übung hinzufügen oder tauschen (Satz direkt tracken)
+                <Plus className="w-4 h-4" /> Übung hinzufügen oder tauschen
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                 <input
-                  type="text" required placeholder="Übungsname (z.B. Dips, Curls)..."
+                  type="text" required placeholder="Übungsname (z.B. Dips)..."
                   value={customPlanEx.name}
                   onChange={(e) => setCustomPlanEx({ ...customPlanEx, name: e.target.value })}
                   className="sm:col-span-4 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
@@ -751,7 +755,7 @@ export default function App() {
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-10 text-center space-y-3">
                 <Dumbbell className="w-10 h-10 text-violet-400 mx-auto opacity-80" />
                 <h3 className="text-base font-bold text-white">Keine Übungen im Plan</h3>
-                <p className="text-xs text-zinc-400">Füge oben über das Formular deine erste Übung hinzu!</p>
+                <p className="text-xs text-zinc-400">Füge oben deine erste Übung hinzu!</p>
               </div>
             ) : (
               (plans[selectedClient] || []).map((planItem, idx) => {
@@ -780,7 +784,6 @@ export default function App() {
                         </div>
                         <p className="text-xs text-zinc-400 mt-1">
                           Vorgabe: <strong className="text-zinc-200">{planItem.targetSets} Sätze × {planItem.targetReps} Wdh.</strong>
-                          {planItem.targetRpe && ` • RPE ${planItem.targetRpe}`}
                         </p>
                         {planItem.note && <p className="text-xs text-violet-300 mt-1">💡 Hinweis: {planItem.note}</p>}
                       </div>
@@ -794,7 +797,6 @@ export default function App() {
                         </div>
                         <button
                           onClick={() => handleRemovePlanItem(planItem.id)}
-                          title="Übung entfernen"
                           className="p-2 rounded-lg bg-zinc-800 hover:bg-rose-950 text-zinc-400 hover:text-rose-400 transition"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -892,7 +894,7 @@ export default function App() {
                         <div className="md:col-span-4">
                           <label className="text-xs text-zinc-400 block mb-1">Betroffene Stelle</label>
                           <input
-                            type="text" placeholder="z.B. Knie, Schulter..."
+                            type="text" placeholder="z.B. Knie..."
                             value={fb.painArea}
                             onChange={(e) => updateExerciseFeedback(planItem.id, 'painArea', e.target.value)}
                             className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white"
@@ -908,22 +910,6 @@ export default function App() {
                           />
                         </div>
                       </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-950/60 border border-zinc-800 rounded-xl p-3">
-                        <div className="flex items-center gap-2 text-xs text-zinc-300">
-                          <Video className="w-4 h-4 text-violet-400" />
-                          <span>Technik-Video:</span>
-                          {fb.videoName && <span className="text-violet-300 font-semibold">({fb.videoName})</span>}
-                        </div>
-                        <label className="px-3 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 text-xs font-semibold cursor-pointer">
-                          🎥 Video hochladen
-                          <input type="file" accept="video/*" onChange={(e) => handleVideoFileUpload(planItem.id, e)} className="hidden" />
-                        </label>
-                      </div>
-
-                      {fb.videoUrl && (
-                        <video src={fb.videoUrl} controls className="w-full max-h-60 rounded-xl bg-black border border-zinc-800" />
-                      )}
                     </div>
                   </div>
                 );
@@ -954,73 +940,8 @@ export default function App() {
         {isCoach && activeTab === 'plans' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-lg font-bold text-white">Plan verwalten für {currentClientObj?.name}</h2>
-                  <p className="text-xs text-zinc-400">PIN dieses Testers: <strong className="text-violet-300">{currentClientObj?.pin}</strong></p>
-                </div>
-                {selectedClient !== 'coach' && (
-                  <button
-                    onClick={() => copyClientLink(selectedClient)}
-                    className="text-xs px-3 py-1.5 rounded-xl bg-violet-600/20 text-violet-300 border border-violet-500/30 font-semibold"
-                  >
-                    📲 Direkt-Link kopieren
-                  </button>
-                )}
-              </div>
-
-              <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-bold text-violet-300">✍️ Übung zum Plan hinzufügen</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <input
-                    type="text" required placeholder="Übungsname"
-                    value={customPlanEx.name}
-                    onChange={e => setCustomPlanEx({ ...customPlanEx, name: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="text" placeholder="Muskel"
-                    value={customPlanEx.muscle}
-                    onChange={e => setCustomPlanEx({ ...customPlanEx, muscle: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="text" placeholder="Equipment"
-                    value={customPlanEx.equipment}
-                    onChange={e => setCustomPlanEx({ ...customPlanEx, equipment: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <input
-                    type="number" min="1" placeholder="Sätze"
-                    value={customPlanEx.targetSets}
-                    onChange={e => setCustomPlanEx({ ...customPlanEx, targetSets: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="text" placeholder="Wdh (z.B. 8-10)"
-                    value={customPlanEx.targetReps}
-                    onChange={e => setCustomPlanEx({ ...customPlanEx, targetReps: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="text" placeholder="RPE"
-                    value={customPlanEx.targetRpe}
-                    onChange={e => setCustomPlanEx({ ...customPlanEx, targetRpe: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="text" placeholder="Tempo"
-                    value={customPlanEx.tempo}
-                    onChange={e => setCustomPlanEx({ ...customPlanEx, tempo: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                </div>
-                <button type="submit" className="px-5 py-2.5 rounded-xl bg-violet-600 text-white text-xs font-bold">
-                  + Hinzufügen
-                </button>
-              </form>
+              <h2 className="text-lg font-bold text-white">Plan verwalten für {currentClientObj?.name}</h2>
+              <p className="text-xs text-zinc-400">PIN: <strong className="text-violet-300">{currentClientObj?.pin}</strong></p>
             </div>
           </div>
         )}
@@ -1038,7 +959,7 @@ export default function App() {
                   <textarea
                     rows={3}
                     value={checkupNotes[selectedClient] || ''}
-                    onChange={(e) => setCheckupNotes({ ...checkupNotes, [selectedClient]: e.target.value })}
+                    onChange={(e) => handleUpdateCheckupNote(e.target.value)}
                     placeholder="Feedback für Tester..."
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-sm text-white"
                   />
@@ -1069,7 +990,6 @@ export default function App() {
                           <div className="text-xs text-zinc-300">
                             {ex.sets?.map(s => `${s.weight || 0}kg × ${s.reps || 0}`).join(' | ')}
                           </div>
-                          {ex.videoUrl && <video src={ex.videoUrl} controls className="w-full max-h-48 rounded-lg bg-black" />}
                         </div>
                       ))}
                     </div>
@@ -1106,24 +1026,8 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {isCoach && activeTab === 'exercises' && (
-          <div className="space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex justify-between items-center">
-              <input
-                type="text" placeholder="Übungen suchen..."
-                value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
-              />
-              <button onClick={() => setShowNewExerciseModal(true)} className="px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold">
-                + Neue Übung
-              </button>
-            </div>
-          </div>
-        )}
       </main>
 
-      {/* MODALS */}
       {showMeasureModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
           <form onSubmit={handleSaveMeasurement} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1149,13 +1053,10 @@ export default function App() {
       )}
 
       {showBackupModal && (
-        <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+        <div className="Header-Modals fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-md w-full space-y-4">
-            <h3 className="text-lg font-bold text-white">Daten & Backup</h3>
-            <button onClick={exportBackup} className="w-full py-2.5 px-4 rounded-xl bg-violet-600 text-white text-xs font-bold">Backup herunterladen (.JSON)</button>
-            <label className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 text-zinc-200 text-xs font-bold text-center block cursor-pointer">
-              Backup laden <input type="file" accept=".json" onChange={importBackup} className="hidden" />
-            </label>
+            <h3 className="text-lg font-bold text-white">Cloud Status</h3>
+            <p className="text-xs text-zinc-400">Deine Daten werden jetzt zentral über Firebase Firestore in Echtzeit synchronisiert.</p>
             <div className="flex justify-end pt-2">
               <button onClick={() => setShowBackupModal(false)} className="px-4 py-1.5 rounded-lg bg-zinc-800 text-xs">Schließen</button>
             </div>
