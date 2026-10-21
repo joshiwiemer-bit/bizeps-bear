@@ -26,8 +26,8 @@ const INITIAL_CLIENTS = [
   { id: 'tester15', name: 'Tester 15', role: 'Kunde', goal: 'Athletik', pin: '1015' },
   { id: 'tester16', name: 'Tester 16', role: 'Kunde', goal: 'Hypertrophie', pin: '1016' },
   { id: 'tester17', name: 'Tester 17', role: 'Kunde', goal: 'Kraftaufbau', pin: '1017' },
-  { id: 'tester18', name: 'Tester 18', role: 'Kunde', goal: 'Fettabbau', pin: '1018' },
-  { id: 'tester19', name: 'Tester 19', role: 'Kunde', goal: 'Reha / Physio', pin: '1019' },
+  { id: 'tester18', name: 'PookiePAvel', role: 'Kunde', goal: 'Fettabbau', pin: '6767' },
+  { id: 'tester19', name: 'Aaron', role: 'Kunde', goal: 'Reha / Physio', pin: '8787' },
   { id: 'tester20', name: 'Cassian', role: 'Kunde', goal: 'Athletik', pin: '7879' },
 ];
 
