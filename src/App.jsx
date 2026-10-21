@@ -28,7 +28,7 @@ const INITIAL_CLIENTS = [
   { id: 'tester17', name: 'Tester 17', role: 'Kunde', goal: 'Kraftaufbau', pin: '1017' },
   { id: 'tester18', name: 'Tester 18', role: 'Kunde', goal: 'Fettabbau', pin: '1018' },
   { id: 'tester19', name: 'Tester 19', role: 'Kunde', goal: 'Reha / Physio', pin: '1019' },
-  { id: 'tester20', name: 'Tester 20', role: 'Kunde', goal: 'Athletik', pin: '1020' },
+  { id: 'tester20', name: 'Cassian', role: 'Kunde', goal: 'Athletik', pin: '7879' },
 ];
 
 const INITIAL_PLANS = {
@@ -1113,3 +1113,161 @@ export default function App() {
                   <input
                     type="text" placeholder="RPE"
                     value={customPlanEx.targetRpe}
+                    onChange={e => setCustomPlanEx({ ...customPlanEx, targetRpe: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                  <input
+                    type="text" placeholder="Tempo"
+                    value={customPlanEx.tempo}
+                    onChange={e => setCustomPlanEx({ ...customPlanEx, tempo: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                </div>
+                <button type="submit" className="px-5 py-2.5 rounded-xl bg-violet-600 text-white text-xs font-bold">
+                  + Hinzufügen
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'checkup' && (
+          <div className="space-y-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <HeartPulse className="w-5 h-5 text-violet-400" />
+                Wochen-Check-Up – {currentClientObj?.name}
+              </h2>
+              <div className="mt-4">
+                <label className="text-xs font-semibold text-violet-300 block mb-1.5">Coach-Feedback:</label>
+                {isCoach ? (
+                  <textarea
+                    rows={3}
+                    value={checkupNotes[selectedClient] || ''}
+                    onChange={(e) => setCheckupNotes({ ...checkupNotes, [selectedClient]: e.target.value })}
+                    placeholder="Feedback für Tester..."
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-sm text-white"
+                  />
+                ) : (
+                  <div className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-sm text-zinc-200">
+                    {checkupNotes[selectedClient] || 'Noch kein Feedback vom Coach.'}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {(workoutLogs[selectedClient] || []).length === 0 ? (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center text-zinc-400 text-sm">
+                  Keine Trainingsprotokolle vorhanden.
+                </div>
+              ) : (
+                (workoutLogs[selectedClient] || []).map(log => (
+                  <div key={log.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+                    <div className="flex justify-between border-b border-zinc-800 pb-3 text-xs">
+                      <span>📅 {log.date}</span>
+                      <span>Energie: {log.energyLevel}/10 | Schlaf: {log.sleepHours}h</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {log.exercises.map((ex, i) => (
+                        <div key={i} className="p-4 rounded-xl bg-zinc-800/50 border border-zinc-800 space-y-2">
+                          <div className="font-bold text-sm text-white">{ex.name}</div>
+                          <div className="text-xs text-zinc-300">
+                            {ex.sets?.map(s => `${s.weight || 0}kg × ${s.reps || 0}`).join(' | ')}
+                          </div>
+                          {ex.videoUrl && <video src={ex.videoUrl} controls className="w-full max-h-48 rounded-lg bg-black" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'body' && (
+          <div className="space-y-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-white">Körperumfänge – {currentClientObj?.name}</h2>
+              <button onClick={() => setShowMeasureModal(true)} className="px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold">
+                + Messung eintragen
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {MEASUREMENT_METRICS.map(m => {
+                const list = clientMeasurements;
+                const latest = list.length > 0 ? list[list.length - 1][m.key] : '-';
+                return (
+                  <button
+                    key={m.key}
+                    onClick={() => setSelectedMetric(m.key)}
+                    className={`p-3.5 rounded-2xl border text-left ${selectedMetric === m.key ? 'bg-violet-950/40 border-violet-500' : 'bg-zinc-900 border-zinc-800'}`}
+                  >
+                    <div className="text-xs text-zinc-400">{m.label}</div>
+                    <div className="text-lg font-black text-white mt-1">{latest} {m.unit}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {isCoach && activeTab === 'exercises' && (
+          <div className="space-y-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex justify-between items-center">
+              <input
+                type="text" placeholder="Übungen suchen..."
+                value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
+              />
+              <button onClick={() => setShowNewExerciseModal(true)} className="px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold">
+                + Neue Übung
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* MODALS */}
+      {showMeasureModal && (
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+          <form onSubmit={handleSaveMeasurement} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-white">Umfänge eintragen</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs text-zinc-400">Datum</label>
+                <input type="date" value={newMeasure.date} onChange={e => setNewMeasure({ ...newMeasure, date: e.target.value })} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-white text-sm" />
+              </div>
+              {MEASUREMENT_METRICS.map(m => (
+                <div key={m.key}>
+                  <label className="text-xs text-zinc-400">{m.label}</label>
+                  <input type="number" step="0.1" value={newMeasure[m.key]} onChange={e => setNewMeasure({ ...newMeasure, [m.key]: e.target.value })} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-white text-sm" />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 pt-3">
+              <button type="button" onClick={() => setShowMeasureModal(false)} className="px-4 py-2 rounded-xl bg-zinc-800 text-xs">Abbrechen</button>
+              <button type="submit" className="px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold">Speichern</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showBackupModal && (
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-md w-full space-y-4">
+            <h3 className="text-lg font-bold text-white">Daten & Backup</h3>
+            <button onClick={exportBackup} className="w-full py-2.5 px-4 rounded-xl bg-violet-600 text-white text-xs font-bold">Backup herunterladen (.JSON)</button>
+            <label className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 text-zinc-200 text-xs font-bold text-center block cursor-pointer">
+              Backup laden <input type="file" accept=".json" onChange={importBackup} className="hidden" />
+            </label>
+            <div className="flex justify-end pt-2">
+              <button onClick={() => setShowBackupModal(false)} className="px-4 py-1.5 rounded-lg bg-zinc-800 text-xs">Schließen</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
