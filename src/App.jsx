@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Dumbbell, Users, BookOpen, Calendar, Plus, Check, Clock, 
   AlertTriangle, Activity, TrendingUp, Save, Download, Upload, 
-  RotateCcw, Search, Trash2, HeartPulse, Video, UserPlus, X
+  RotateCcw, Search, Trash2, HeartPulse, Video, UserPlus, X, 
+  Lock, LogOut, ShieldCheck, Share2, KeyRound, Eye
 } from 'lucide-react';
 
-// --- NUR DEIN EIGENES START-PROFIL (KEINE FAKE-DATEN) ---
 const DEFAULT_CLIENTS = [
-  { id: 'coach', name: 'Ich (Coach / Eigenes Training)', role: 'Coach', goal: 'Eigenes Training' }
+  { id: 'coach', name: 'Ich (Coach / Eigenes Training)', role: 'Coach', goal: 'Eigenes Training', pin: '9999' }
 ];
 
 const MEASUREMENT_METRICS = [
@@ -24,11 +24,21 @@ const MEASUREMENT_METRICS = [
 ];
 
 export default function App() {
+  // --- AUTH & ROLLEN STATE ---
+  // authSession: { role: 'coach' | 'client', clientId: string } | null
+  const [authSession, setAuthSession] = useState(() => {
+    const saved = localStorage.getItem('bb_v3_session');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [pinInput, setPinInput] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [coachPin, setCoachPin] = useState(() => localStorage.getItem('bb_v3_coach_pin') || '9999');
+
   const [activeTab, setActiveTab] = useState('workout');
   const [selectedClient, setSelectedClient] = useState('coach');
   const [lastSaved, setLastSaved] = useState('');
 
-  // --- STATE (Komplett leerer Start ohne vorgefertigte Übungen/Kunden) ---
+  // --- APP DATA STATE ---
   const [clients, setClients] = useState(() => {
     const saved = localStorage.getItem('bb_v2_clients');
     return saved ? JSON.parse(saved) : DEFAULT_CLIENTS;
@@ -59,7 +69,29 @@ export default function App() {
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Automatische Speicherung im Browser
+  // Prüfe beim Start, ob ein Direkt-Link (?client=ID) geöffnet wurde
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlClient = params.get('client');
+    if (urlClient && clients.some(c => c.id === urlClient)) {
+      const session = { role: 'client', clientId: urlClient };
+      setAuthSession(session);
+      setSelectedClient(urlClient);
+      localStorage.setItem('bb_v3_session', JSON.stringify(session));
+    }
+  }, [clients]);
+
+  // Wenn als Kunde eingeloggt, erzwinge immer nur das eigene Profil
+  useEffect(() => {
+    if (authSession?.role === 'client') {
+      setSelectedClient(authSession.clientId);
+      if (activeTab === 'plans' || activeTab === 'exercises') {
+        setActiveTab('workout');
+      }
+    }
+  }, [authSession, activeTab]);
+
+  // Automatische Speicherung
   useEffect(() => {
     localStorage.setItem('bb_v2_clients', JSON.stringify(clients));
     localStorage.setItem('bb_v2_exercises', JSON.stringify(exercises));
@@ -67,9 +99,66 @@ export default function App() {
     localStorage.setItem('bb_v2_measurements', JSON.stringify(measurements));
     localStorage.setItem('bb_v2_workout_logs', JSON.stringify(workoutLogs));
     localStorage.setItem('bb_v2_checkup_notes', JSON.stringify(checkupNotes));
+    localStorage.setItem('bb_v3_coach_pin', coachPin);
     const now = new Date();
     setLastSaved(now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
-  }, [clients, exercises, plans, measurements, workoutLogs, checkupNotes]);
+  }, [clients, exercises, plans, measurements, workoutLogs, checkupNotes, coachPin]);
+
+  const isCoach = authSession?.role === 'coach';
+
+  // --- LOGIN / LOGOUT HANDLER ---
+  const handlePinLogin = (e) => {
+    e.preventDefault();
+    setLoginError('');
+    const cleanPin = pinInput.trim();
+
+    if (cleanPin === coachPin) {
+      const session = { role: 'coach', clientId: 'coach' };
+      setAuthSession(session);
+      setSelectedClient('coach');
+      localStorage.setItem('bb_v3_session', JSON.stringify(session));
+      setPinInput('');
+      return;
+    }
+
+    const matchedClient = clients.find(c => c.id !== 'coach' && c.pin === cleanPin);
+    if (matchedClient) {
+      const session = { role: 'client', clientId: matchedClient.id };
+      setAuthSession(session);
+      setSelectedClient(matchedClient.id);
+      localStorage.setItem('bb_v3_session', JSON.stringify(session));
+      setPinInput('');
+      return;
+    }
+
+    setLoginError('Ungültiger Zugangs-Code! (Coach-Standard-PIN ist 9999)');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('bb_v3_session');
+    setAuthSession(null);
+    setPinInput('');
+    // Entferne evtl. ?client= Parameter aus der URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+  };
+
+  // Vorschau-Umschalter: Coach kann testen, wie der aktuelle Kunde die App sieht
+  const switchToClientPreview = () => {
+    if (selectedClient === 'coach') {
+      alert('Wähle oben rechts zuerst einen Kunden aus, um dessen Kunden-Ansicht zu testen.');
+      return;
+    }
+    const session = { role: 'client', clientId: selectedClient };
+    setAuthSession(session);
+    localStorage.setItem('bb_v3_session', JSON.stringify(session));
+  };
+
+  const copyClientLink = (clientId) => {
+    const url = `${window.location.origin}${window.location.pathname}?client=${clientId}`;
+    navigator.clipboard.writeText(url);
+    const c = clients.find(x => x.id === clientId);
+    alert(`Direkt-Link für ${c?.name || 'Kunde'} kopiert!\n\nLink: ${url}\nZugangs-PIN: ${c?.pin || 'Kein PIN'}`);
+  };
 
   // --- WORKOUT LOGGER STATE ---
   const [activeWorkoutSets, setActiveWorkoutSets] = useState({});
@@ -78,20 +167,11 @@ export default function App() {
   const [restTimer, setRestTimer] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
 
-  // Direktes Hinzufügen einer Übung (Freitext) für Plan & Workout
   const [customPlanEx, setCustomPlanEx] = useState({
-    name: '',
-    muscle: 'Brust',
-    equipment: 'Langhantel',
-    targetSets: 3,
-    targetReps: '8-10',
-    targetRpe: '8',
-    tempo: '3-1-1-0',
-    note: '',
-    saveToDb: true
+    name: '', muscle: 'Brust', equipment: 'Langhantel',
+    targetSets: 3, targetReps: '8-10', targetRpe: '8', tempo: '3-1-1-0', note: '', saveToDb: true
   });
 
-  // Synchronisiere Sätze mit dem aktuellen Plan des ausgewählten Profils
   useEffect(() => {
     const currentPlan = plans[selectedClient] || [];
     setActiveWorkoutSets(prev => {
@@ -117,7 +197,6 @@ export default function App() {
     });
   }, [selectedClient, plans]);
 
-  // Satzpausen-Timer
   useEffect(() => {
     if (!timerActive || restTimer <= 0) {
       if (restTimer <= 0) setTimerActive(false);
@@ -127,11 +206,10 @@ export default function App() {
     return () => clearInterval(interval);
   }, [timerActive, restTimer]);
 
-  // --- KUNDEN VERWALTUNG STATE ---
+  // --- MODALS & FORMS STATE ---
   const [showClientModal, setShowClientModal] = useState(false);
-  const [newClient, setNewClient] = useState({ name: '', goal: '' });
+  const [newClient, setNewClient] = useState({ name: '', goal: '', pin: '' });
 
-  // --- KÖRPER & UMFÄNGE STATE ---
   const [selectedMetric, setSelectedMetric] = useState('weight');
   const [chartRange, setChartRange] = useState('month');
   const [showMeasureModal, setShowMeasureModal] = useState(false);
@@ -140,43 +218,45 @@ export default function App() {
     weight: '', shoulders: '', chest: '', waist: '', belly: '', hips: '', upperArm: '', forearm: '', thigh: '', calf: ''
   });
 
-  // --- ÜBUNGSDATENBANK STATE ---
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewExerciseModal, setShowNewExerciseModal] = useState(false);
   const [newExercise, setNewExercise] = useState({ name: '', muscle: '', equipment: '', cues: '', mistakes: '' });
 
-  // --- VIDEO SPEED IM CHECK-UP ---
   const [videoSpeeds, setVideoSpeeds] = useState({});
   const [showBackupModal, setShowBackupModal] = useState(false);
 
-  // --- HANDLERS: KUNDEN ---
+  // --- HANDLERS: KUNDEN (NUR COACH) ---
   const handleAddClient = (e) => {
     e.preventDefault();
-    if (!newClient.name.trim()) return;
+    if (!isCoach || !newClient.name.trim()) return;
+    const cleanPin = newClient.pin.trim() || String(Math.floor(1000 + Math.random() * 9000));
     const id = 'client_' + Date.now();
-    const created = { id, name: newClient.name.trim(), role: 'Kunde', goal: newClient.goal.trim() || 'Coaching' };
+    const created = {
+      id,
+      name: newClient.name.trim(),
+      role: 'Kunde',
+      goal: newClient.goal.trim() || 'Coaching',
+      pin: cleanPin
+    };
     setClients(prev => [...prev, created]);
     setPlans(prev => ({ ...prev, [id]: [] }));
     setSelectedClient(id);
-    setNewClient({ name: '', goal: '' });
+    setNewClient({ name: '', goal: '', pin: '' });
     setShowClientModal(false);
   };
 
   const handleDeleteClient = (id) => {
-    if (id === 'coach') {
-      alert('Dein eigenes Coach-Profil kann nicht gelöscht werden.');
-      return;
-    }
+    if (!isCoach || id === 'coach') return;
     if (window.confirm('Diesen Kunden und seine Pläne wirklich löschen?')) {
       setClients(prev => prev.filter(c => c.id !== id));
       if (selectedClient === id) setSelectedClient('coach');
     }
   };
 
-  // --- HANDLERS: ÜBUNG FREI ZUM PLAN / WORKOUT HINZUFÜGEN ---
+  // --- HANDLERS: PLAN BEARBEITEN (NUR COACH) ---
   const handleAddCustomExerciseToPlan = (e) => {
     e.preventDefault();
-    if (!customPlanEx.name.trim()) return;
+    if (!isCoach || !customPlanEx.name.trim()) return;
 
     const planEntryId = 'plan_ex_' + Date.now();
     const newPlanItem = {
@@ -197,7 +277,6 @@ export default function App() {
       [selectedClient]: [...(prev[selectedClient] || []), newPlanItem]
     }));
 
-    // Optional gleichzeitig in die Übungsdatenbank speichern
     if (customPlanEx.saveToDb) {
       const exists = exercises.some(ex => ex.name.toLowerCase() === customPlanEx.name.trim().toLowerCase());
       if (!exists) {
@@ -229,6 +308,7 @@ export default function App() {
   };
 
   const handleAddDbExerciseToPlan = (ex) => {
+    if (!isCoach) return;
     const planEntryId = 'plan_ex_' + Date.now() + Math.random().toString(36).slice(2, 5);
     const newPlanItem = {
       id: planEntryId,
@@ -249,6 +329,7 @@ export default function App() {
   };
 
   const handleUpdatePlanItem = (itemId, field, value) => {
+    if (!isCoach) return;
     setPlans(prev => ({
       ...prev,
       [selectedClient]: (prev[selectedClient] || []).map(item =>
@@ -258,13 +339,14 @@ export default function App() {
   };
 
   const handleRemovePlanItem = (itemId) => {
+    if (!isCoach) return;
     setPlans(prev => ({
       ...prev,
       [selectedClient]: (prev[selectedClient] || []).filter(item => item.id !== itemId)
     }));
   };
 
-  // --- HANDLERS: WORKOUT LOGGING ---
+  // --- HANDLERS: WORKOUT LOGGING (COACH & KUNDE) ---
   const handleSetChange = (planItemId, setIndex, field, value) => {
     setActiveWorkoutSets(prev => {
       const updated = [...(prev[planItemId] || [])];
@@ -324,7 +406,7 @@ export default function App() {
   const finishWorkout = () => {
     const currentPlan = plans[selectedClient] || [];
     if (currentPlan.length === 0) {
-      alert('Füge zuerst mindestens eine Übung zu deinem Training hinzu.');
+      alert('Es sind noch keine Übungen im Trainingsplan hinterlegt.');
       return;
     }
 
@@ -339,12 +421,10 @@ export default function App() {
         note: fb.note || '',
         videoUrl: fb.videoUrl || '',
         videoName: fb.videoName || '',
-        coachVideoFeedback: '',
         sets
       };
     });
 
-    // Aktualisiere "Letztes Mal" Vorwerte im Trainingsplan
     setPlans(prev => ({
       ...prev,
       [selectedClient]: (prev[selectedClient] || []).map(item => {
@@ -374,7 +454,7 @@ export default function App() {
       [selectedClient]: [newLog, ...(prev[selectedClient] || [])]
     }));
 
-    alert('Training erfolgreich gespeichert! Du findest die Auswertung im Wochen-Check-Up.');
+    alert('Training erfolgreich gespeichert!');
     setActiveTab('checkup');
   };
 
@@ -396,7 +476,7 @@ export default function App() {
   // --- HANDLERS: ÜBUNGSDATENBANK ---
   const handleAddExerciseToDb = (e) => {
     e.preventDefault();
-    if (!newExercise.name.trim()) return;
+    if (!isCoach || !newExercise.name.trim()) return;
     const created = {
       id: 'db_ex_' + Date.now(),
       name: newExercise.name.trim(),
@@ -411,6 +491,7 @@ export default function App() {
   };
 
   const handleDeleteDbExercise = (id) => {
+    if (!isCoach) return;
     setExercises(prev => prev.filter(ex => ex.id !== id));
   };
 
@@ -438,7 +519,7 @@ export default function App() {
         if (parsed.measurements) setMeasurements(parsed.measurements);
         if (parsed.workoutLogs) setWorkoutLogs(parsed.workoutLogs);
         if (parsed.checkupNotes) setCheckupNotes(parsed.checkupNotes);
-        alert('Backup erfolgreich geladen!');
+        alert('Daten erfolgreich importiert!');
         setShowBackupModal(false);
       } catch (err) {
         alert('Fehler beim Lesen der Backup-Datei.');
@@ -448,6 +529,7 @@ export default function App() {
   };
 
   const clearAllData = () => {
+    if (!isCoach) return;
     if (window.confirm('Wirklich ALLE Daten komplett leeren und bei Null starten?')) {
       localStorage.clear();
       setClients(DEFAULT_CLIENTS);
@@ -469,6 +551,81 @@ export default function App() {
   const currentMetricObj = MEASUREMENT_METRICS.find(m => m.key === selectedMetric) || MEASUREMENT_METRICS[0];
   const currentClientObj = clients.find(c => c.id === selectedClient) || clients[0];
 
+  // ==================== LOGIN SCREEN (WENN NICHT EINGELOGGT) ====================
+  if (!authSession) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4 font-sans">
+        <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-3xl p-7 space-y-6 shadow-2xl">
+          <div className="flex flex-col items-center text-center space-y-2">
+            <div className="w-16 h-16 rounded-2xl bg-violet-600 flex items-center justify-center text-4xl shadow-xl shadow-violet-600/30">
+              🐻
+            </div>
+            <h1 className="text-2xl font-black tracking-wider text-white pt-2">BIZEPS BÄR</h1>
+            <span className="text-xs px-3 py-1 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 font-semibold">
+              Coaching & Performance Portal
+            </span>
+            <p className="text-xs text-zinc-400 pt-1">
+              Gib deinen persönlichen 4-stelligen Zugangs-Code ein, um deinen Trainingsplan zu öffnen.
+            </p>
+          </div>
+
+          <form onSubmit={handlePinLogin} className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-zinc-400 block mb-1.5">
+                Zugangs-PIN (Kunde oder Coach)
+              </label>
+              <div className="relative">
+                <KeyRound className="w-4 h-4 text-violet-400 absolute left-3.5 top-3" />
+                <input
+                  type="password"
+                  placeholder="PIN eingeben..."
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-700 focus:border-violet-500 rounded-xl pl-10 pr-4 py-2.5 text-center text-lg tracking-widest font-bold text-white focus:outline-none"
+                  autoFocus
+                />
+              </div>
+              {loginError && (
+                <p className="text-xs text-rose-400 mt-2 text-center font-medium">{loginError}</p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm shadow-lg shadow-violet-600/25 transition"
+            >
+              Anmelden & Trainingsbereich öffnen
+            </button>
+          </form>
+
+          <div className="pt-4 border-t border-zinc-800 text-center space-y-1">
+            <p className="text-[11px] text-zinc-500">
+              🔒 <strong>Kunden-Modus:</strong> Kunden sehen ausschließlich ihren eigenen Trainingsplan.
+            </p>
+            <p className="text-[11px] text-zinc-500">
+              👑 <strong>Coach-Zugang:</strong> Standard-Coach-PIN beim ersten Start ist <code className="text-violet-400 font-bold">9999</code>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== HAUPT-APP (NACH LOGIN) ====================
+  const visibleTabs = isCoach
+    ? [
+        { id: 'workout', label: 'Workout-Logger', icon: Dumbbell },
+        { id: 'plans', label: 'Trainingsplan bauen (Coach)', icon: Calendar },
+        { id: 'checkup', label: 'Wochen-Check-Up & Videos', icon: HeartPulse },
+        { id: 'body', label: 'Körper & Umfänge', icon: TrendingUp },
+        { id: 'exercises', label: 'Übungsdatenbank (Coach)', icon: BookOpen },
+      ]
+    : [
+        { id: 'workout', label: 'Mein Training eintragen', icon: Dumbbell },
+        { id: 'body', label: 'Meine Körperumfänge', icon: TrendingUp },
+        { id: 'checkup', label: 'Mein Wochen-Check-Up', icon: HeartPulse },
+      ];
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans">
       {/* HEADER */}
@@ -481,58 +638,99 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-black tracking-wider text-white">BIZEPS BÄR</h1>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 font-semibold">
-                  Coaching & Performance
-                </span>
+                {isCoach ? (
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/40 font-bold flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5" /> COACH-ANSICHT
+                  </span>
+                ) : (
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
+                    KUNDEN-ANSICHT ({currentClientObj?.name})
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-zinc-400">100% individuelles Trainings- & Check-Up-System</p>
+              <p className="text-xs text-zinc-400">
+                {isCoach ? 'Vollzugriff: Pläne erstellen, Kunden verwalten & analysieren' : `Trainingsplan & Datenerfassung für ${currentClientObj?.name}`}
+              </p>
             </div>
           </div>
 
-          {/* PROFIL-AUSWAHL & NEUER KUNDE BUTTON */}
+          {/* RECHTE HEADER LEISTE: UNTERSCHIEDLICH FÜR COACH & KUNDE */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5">
-              <Users className="w-4 h-4 text-violet-400" />
-              <select
-                value={selectedClient}
-                onChange={(e) => setSelectedClient(e.target.value)}
-                className="bg-transparent text-sm font-semibold text-white focus:outline-none"
-              >
-                {clients.map(c => (
-                  <option key={c.id} value={c.id} className="bg-zinc-900 text-white">
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {isCoach ? (
+              <>
+                <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5">
+                  <Users className="w-4 h-4 text-violet-400" />
+                  <select
+                    value={selectedClient}
+                    onChange={(e) => setSelectedClient(e.target.value)}
+                    className="bg-transparent text-sm font-semibold text-white focus:outline-none"
+                  >
+                    {clients.map(c => (
+                      <option key={c.id} value={c.id} className="bg-zinc-900 text-white">
+                        {c.name} {c.pin && c.id !== 'coach' ? `(PIN: ${c.pin})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <button
-              onClick={() => setShowClientModal(true)}
-              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>+ Profil / Kunde</span>
-            </button>
+                {selectedClient !== 'coach' && (
+                  <>
+                    <button
+                      onClick={() => copyClientLink(selectedClient)}
+                      title="Direkt-Link für diesen Kunden kopieren"
+                      className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-violet-300 transition"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Kunden-Link</span>
+                    </button>
+                    <button
+                      onClick={switchToClientPreview}
+                      title="Testen, wie der Kunde die App sieht"
+                      className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Kunden-Sicht testen</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  onClick={() => setShowClientModal(true)}
+                  className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>+ Neuer Kunde</span>
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center gap-2 bg-zinc-800/80 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-zinc-300">
+                <Lock className="w-3.5 h-3.5 text-violet-400" />
+                <span>Profil: <strong>{currentClientObj?.name}</strong> (Nur Lese-/Eintragsrechte)</span>
+              </div>
+            )}
 
             <button
               onClick={() => setShowBackupModal(true)}
-              className="flex items-center gap-2 text-xs px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition"
+              className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition"
             >
-              <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
-              <span>Backup ({lastSaved || 'Aktiv'})</span>
+              <Download className="w-3.5 h-3.5 text-violet-400" />
+              <span>Daten</span>
+            </button>
+
+            <button
+              onClick={handleLogout}
+              title="Abmelden / Ansicht wechseln"
+              className="flex items-center gap-1 text-xs px-3 py-2 rounded-xl bg-zinc-800 hover:bg-rose-950 border border-zinc-700 text-zinc-400 hover:text-rose-300 transition"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sperren</span>
             </button>
           </div>
         </div>
 
         {/* NAVIGATION */}
         <div className="max-w-7xl mx-auto mt-3 flex gap-2 overflow-x-auto pb-1">
-          {[
-            { id: 'workout', label: 'Workout-Logger', icon: Dumbbell },
-            { id: 'plans', label: 'Trainingsplan bauen', icon: Calendar },
-            { id: 'checkup', label: 'Wochen-Check-Up & Videos', icon: HeartPulse },
-            { id: 'body', label: 'Körper & Umfänge', icon: TrendingUp },
-            { id: 'exercises', label: 'Meine Übungsdatenbank', icon: BookOpen },
-          ].map(tab => {
+          {visibleTabs.map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (
@@ -559,16 +757,17 @@ export default function App() {
         {/* ==================== TAB 1: WORKOUT LOGGER ==================== */}
         {activeTab === 'workout' && (
           <div className="space-y-6">
-            {/* Tagesform & Session-Header */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
               <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                 <div>
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
                     <Activity className="w-5 h-5 text-violet-400" />
-                    Training loggen – {currentClientObj?.name}
+                    {isCoach ? `Training loggen – ${currentClientObj?.name}` : 'Mein heutiges Training'}
                   </h2>
                   <p className="text-xs text-zinc-400">
-                    Trage deine Sätze, Schmerzen, Notizen oder Videos ein oder füge unten direkt eine neue Übung per Hand hinzu.
+                    {isCoach
+                      ? 'Trage Sätze ein oder füge unten neue Übungen zum Plan hinzu.'
+                      : 'Trage deine bewegten Gewichte, Wiederholungen sowie eventuelle Schmerzen/Videos für deinen Coach ein.'}
                   </p>
                 </div>
                 <button
@@ -600,10 +799,10 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-zinc-400 block mb-1">Allgemeine Trainings-Notiz</label>
+                  <label className="text-xs text-zinc-400 block mb-1">Allgemeine Trainings-Notiz für den Coach</label>
                   <input
                     type="text"
-                    placeholder="z.B. Guter Fokus, heute schweres Training..."
+                    placeholder="z.B. Guter Pump, heute etwas müde..."
                     value={sessionMeta.sessionNote}
                     onChange={(e) => setSessionMeta({ ...sessionMeta, sessionNote: e.target.value })}
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
@@ -612,76 +811,80 @@ export default function App() {
               </div>
             </div>
 
-            {/* SCHNELL-EINGABE: ÜBUNG DIREKT IM WORKOUT FREI EINTIPPEN */}
-            <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-900/90 border border-violet-500/30 rounded-2xl p-4 space-y-3">
-              <div className="text-xs font-bold text-violet-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Plus className="w-4 h-4" /> Übung direkt frei eintippen & zum aktuellen Training hinzufügen
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                <input
-                  type="text"
-                  required
-                  placeholder="Übungsname frei eingeben (z.B. Schrägbank Kurzhantel)..."
-                  value={customPlanEx.name}
-                  onChange={(e) => setCustomPlanEx({ ...customPlanEx, name: e.target.value })}
-                  className="sm:col-span-4 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
-                />
-                <input
-                  type="text"
-                  placeholder="Muskel (z.B. Brust)"
-                  value={customPlanEx.muscle}
-                  onChange={(e) => setCustomPlanEx({ ...customPlanEx, muscle: e.target.value })}
-                  className="sm:col-span-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
-                />
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Sätze"
-                  value={customPlanEx.targetSets}
-                  onChange={(e) => setCustomPlanEx({ ...customPlanEx, targetSets: e.target.value })}
-                  className="sm:col-span-1 bg-zinc-800 border border-zinc-700 rounded-xl px-2.5 py-2 text-sm text-white"
-                />
-                <input
-                  type="text"
-                  placeholder="Wdh (z.B. 8-10)"
-                  value={customPlanEx.targetReps}
-                  onChange={(e) => setCustomPlanEx({ ...customPlanEx, targetReps: e.target.value })}
-                  className="sm:col-span-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
-                />
-                <input
-                  type="text"
-                  placeholder="Notiz / Hinweis"
-                  value={customPlanEx.note}
-                  onChange={(e) => setCustomPlanEx({ ...customPlanEx, note: e.target.value })}
-                  className="sm:col-span-3 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
-                />
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+            {/* NUR FÜR COACH SICHTBAR: ÜBUNG DIREKT IM WORKOUT FREI EINTIPPEN */}
+            {isCoach && (
+              <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-900/90 border border-violet-500/30 rounded-2xl p-4 space-y-3">
+                <div className="text-xs font-bold text-violet-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Plus className="w-4 h-4" /> [Coach] Neue Übung direkt frei eintippen & zum Plan hinzufügen
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                   <input
-                    type="checkbox"
-                    checked={customPlanEx.saveToDb}
-                    onChange={(e) => setCustomPlanEx({ ...customPlanEx, saveToDb: e.target.checked })}
-                    className="accent-violet-600"
+                    type="text"
+                    required
+                    placeholder="Übungsname frei eingeben..."
+                    value={customPlanEx.name}
+                    onChange={(e) => setCustomPlanEx({ ...customPlanEx, name: e.target.value })}
+                    className="sm:col-span-4 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
                   />
-                  Gleichzeitig in meiner Übungsdatenbank speichern
-                </label>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold flex items-center gap-1.5 transition"
-                >
-                  <Plus className="w-4 h-4" /> Übung jetzt ins Training einfügen
-                </button>
-              </div>
-            </form>
+                  <input
+                    type="text"
+                    placeholder="Muskel (z.B. Brust)"
+                    value={customPlanEx.muscle}
+                    onChange={(e) => setCustomPlanEx({ ...customPlanEx, muscle: e.target.value })}
+                    className="sm:col-span-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Sätze"
+                    value={customPlanEx.targetSets}
+                    onChange={(e) => setCustomPlanEx({ ...customPlanEx, targetSets: e.target.value })}
+                    className="sm:col-span-1 bg-zinc-800 border border-zinc-700 rounded-xl px-2.5 py-2 text-sm text-white"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Wdh (z.B. 8-10)"
+                    value={customPlanEx.targetReps}
+                    onChange={(e) => setCustomPlanEx({ ...customPlanEx, targetReps: e.target.value })}
+                    className="sm:col-span-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Coaching-Hinweis"
+                    value={customPlanEx.note}
+                    onChange={(e) => setCustomPlanEx({ ...customPlanEx, note: e.target.value })}
+                    className="sm:col-span-3 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={customPlanEx.saveToDb}
+                      onChange={(e) => setCustomPlanEx({ ...customPlanEx, saveToDb: e.target.checked })}
+                      className="accent-violet-600"
+                    />
+                    Gleichzeitig in meiner Übungsdatenbank speichern
+                  </label>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold flex items-center gap-1.5 transition"
+                  >
+                    <Plus className="w-4 h-4" /> Übung einfügen
+                  </button>
+                </div>
+              </form>
+            )}
 
-            {/* FALLS NOCH KEINE ÜBUNGEN IM PLAN SIND */}
+            {/* ÜBUNGS-LISTE IM WORKOUT */}
             {(plans[selectedClient] || []).length === 0 ? (
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-10 text-center space-y-3">
                 <Dumbbell className="w-10 h-10 text-violet-400 mx-auto opacity-80" />
-                <h3 className="text-base font-bold text-white">Noch keine Übungen für dieses Profil eingetragen</h3>
+                <h3 className="text-base font-bold text-white">Noch keine Übungen im Trainingsplan</h3>
                 <p className="text-xs text-zinc-400 max-w-md mx-auto">
-                  Tippe oben im Feld einfach deine erste Übung frei ein und klicke auf „Übung jetzt ins Training einfügen“.
+                  {isCoach
+                    ? 'Füge oben über das Eingabefeld oder im Tab „Trainingsplan bauen“ die ersten Übungen hinzu.'
+                    : 'Dein Coach hat für dieses Profil aktuell noch keine Übungen freigeschaltet.'}
                 </p>
               </div>
             ) : (
@@ -697,21 +900,26 @@ export default function App() {
                           <span className="w-6 h-6 rounded-lg bg-violet-600/20 text-violet-400 text-xs font-bold flex items-center justify-center">
                             {idx + 1}
                           </span>
-                          <input
-                            type="text"
-                            value={planItem.name}
-                            onChange={(e) => handleUpdatePlanItem(planItem.id, 'name', e.target.value)}
-                            className="text-base font-bold text-white bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-violet-500 focus:outline-none"
-                          />
+                          {/* Name nur für Coach editierbar, für Kunden fester Text */}
+                          {isCoach ? (
+                            <input
+                              type="text"
+                              value={planItem.name}
+                              onChange={(e) => handleUpdatePlanItem(planItem.id, 'name', e.target.value)}
+                              className="text-base font-bold text-white bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-violet-500 focus:outline-none"
+                            />
+                          ) : (
+                            <h3 className="text-base font-bold text-white">{planItem.name}</h3>
+                          )}
                           <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">{planItem.muscle}</span>
                         </div>
                         <p className="text-xs text-zinc-400 mt-1">
-                          Ziel: <strong className="text-zinc-200">{planItem.targetSets} Sätze × {planItem.targetReps} Wdh.</strong>
-                          {planItem.targetRpe && ` • RPE ${planItem.targetRpe}`}
+                          Vorgabe vom Coach: <strong className="text-zinc-200">{planItem.targetSets} Sätze × {planItem.targetReps} Wdh.</strong>
+                          {planItem.targetRpe && ` • Ziel-RPE ${planItem.targetRpe}`}
                           {planItem.tempo && ` • Tempo ${planItem.tempo}`}
                         </p>
                         {planItem.note && (
-                          <p className="text-xs text-violet-300 mt-1">💡 Hinweis: {planItem.note}</p>
+                          <p className="text-xs text-violet-300 mt-1">💡 Coach-Hinweis: {planItem.note}</p>
                         )}
                       </div>
 
@@ -722,24 +930,27 @@ export default function App() {
                             {planItem.lastLog || 'Neu'}
                           </span>
                         </div>
-                        <button
-                          onClick={() => handleRemovePlanItem(planItem.id)}
-                          title="Übung entfernen"
-                          className="p-2 rounded-lg bg-zinc-800 hover:bg-rose-950 text-zinc-400 hover:text-rose-400 transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {/* Löschen-Button nur für Coach! */}
+                        {isCoach && (
+                          <button
+                            onClick={() => handleRemovePlanItem(planItem.id)}
+                            title="Übung aus Plan löschen"
+                            className="p-2 rounded-lg bg-zinc-800 hover:bg-rose-950 text-zinc-400 hover:text-rose-400 transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    {/* SÄTZE TABELLE */}
+                    {/* SÄTZE TABELLE (Kunde darf Gewichte, Wdh, RPE und Haken setzen) */}
                     <div className="space-y-2">
                       <div className="grid grid-cols-12 gap-2 text-xs text-zinc-400 font-semibold px-2">
                         <div className="col-span-2">Satz</div>
                         <div className="col-span-3">Gewicht (kg)</div>
                         <div className="col-span-3">Wdh.</div>
                         <div className="col-span-2">RPE</div>
-                        <div className="col-span-2 text-right">Aktion</div>
+                        <div className="col-span-2 text-right">Fertig</div>
                       </div>
 
                       {sets.map((s, sIdx) => (
@@ -786,27 +997,31 @@ export default function App() {
                             >
                               <Check className="w-4 h-4" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => removeSetFromWorkoutExercise(planItem.id, sIdx)}
-                              className="w-8 h-8 rounded-lg bg-zinc-800/70 hover:bg-rose-950 text-zinc-500 hover:text-rose-400 flex items-center justify-center"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
+                            {isCoach && (
+                              <button
+                                type="button"
+                                onClick={() => removeSetFromWorkoutExercise(planItem.id, sIdx)}
+                                className="w-8 h-8 rounded-lg bg-zinc-800/70 hover:bg-rose-950 text-zinc-500 hover:text-rose-400 flex items-center justify-center"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}
 
-                      <button
-                        type="button"
-                        onClick={() => addSetToWorkoutExercise(planItem.id)}
-                        className="text-xs text-violet-400 hover:text-violet-300 font-semibold flex items-center gap-1 pt-1 pl-1"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Weiteren Satz hinzufügen
-                      </button>
+                      {isCoach && (
+                        <button
+                          type="button"
+                          onClick={() => addSetToWorkoutExercise(planItem.id)}
+                          className="text-xs text-violet-400 hover:text-violet-300 font-semibold flex items-center gap-1 pt-1 pl-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Weiteren Satz hinzufügen
+                        </button>
+                      )}
                     </div>
 
-                    {/* SCHMERZ, NOTIZ & TECHNIK-VIDEO UPLOAD */}
+                    {/* SCHMERZ, NOTIZ & TECHNIK-VIDEO UPLOAD (Für Kunde & Coach nutzbar) */}
                     <div className="pt-3 border-t border-zinc-800/80 space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
                         <div className="md:col-span-3">
@@ -836,7 +1051,7 @@ export default function App() {
                         </div>
 
                         <div className="md:col-span-5">
-                          <label className="text-xs text-zinc-400 block mb-1">Übungs-Notiz für Wochen-Check-Up</label>
+                          <label className="text-xs text-zinc-400 block mb-1">Notiz zur Übung für den Coach</label>
                           <input
                             type="text"
                             placeholder="Wie hat sich die Ausführung angefühlt?"
@@ -847,7 +1062,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* VIDEO UPLOAD FÜR FORM-CHECK */}
                       <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-950/60 border border-zinc-800 rounded-xl p-3">
                         <div className="flex items-center gap-2 text-xs text-zinc-300">
                           <Video className="w-4 h-4 text-violet-400" />
@@ -857,7 +1071,7 @@ export default function App() {
                           )}
                         </div>
                         <label className="px-3 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 text-xs font-semibold cursor-pointer transition">
-                          🎥 Video vom Handy / PC wählen
+                          🎥 Video vom Handy wählen
                           <input
                             type="file"
                             accept="video/*"
@@ -902,30 +1116,37 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== TAB 2: TRAININGSPLAN BAUEN (FREI & DATENBANK) ==================== */}
-        {activeTab === 'plans' && (
+        {/* ==================== TAB 2: TRAININGSPLAN BAUEN (NUR FÜR COACH!) ==================== */}
+        {isCoach && activeTab === 'plans' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-bold text-white">
-                    Trainingsplan frei zusammenstellen – {currentClientObj?.name}
+                    Trainingsplan erstellen & anpassen – {currentClientObj?.name}
                   </h2>
                   <p className="text-xs text-zinc-400">
-                    Schreibe Übungen komplett frei per Hand rein oder klicke unten auf deine gespeicherten Übungen.
+                    Kunden-PIN dieses Profils: <strong className="text-violet-300">{currentClientObj?.pin || '9999'}</strong> (Kunden können diesen Plan nur ausfüllen, aber nicht umstellen).
                   </p>
                 </div>
                 {selectedClient !== 'coach' && (
-                  <button
-                    onClick={() => handleDeleteClient(selectedClient)}
-                    className="text-xs px-3 py-1.5 rounded-xl bg-rose-950/60 text-rose-300 border border-rose-800/40 hover:bg-rose-900/60"
-                  >
-                    Kundenprofil löschen
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => copyClientLink(selectedClient)}
+                      className="text-xs px-3 py-1.5 rounded-xl bg-violet-600/20 text-violet-300 border border-violet-500/30 font-semibold"
+                    >
+                      📲 Kunden-Link kopieren
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClient(selectedClient)}
+                      className="text-xs px-3 py-1.5 rounded-xl bg-rose-950/60 text-rose-300 border border-rose-800/40 hover:bg-rose-900/60"
+                    >
+                      Kundenprofil löschen
+                    </button>
+                  </div>
                 )}
               </div>
 
-              {/* FREIE EINGABE */}
               <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3">
                 <h3 className="text-sm font-bold text-violet-300">✍️ Neue Übung manuell in den Plan schreiben</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1000,7 +1221,7 @@ export default function App() {
                 <div>
                   <label className="text-xs text-zinc-400 block mb-1">Coaching-Hinweis / Ausführung</label>
                   <input
-                    type="text" placeholder="Worauf soll bei der Übung geachtet werden?"
+                    type="text" placeholder="Worauf soll der Kunde achten?"
                     value={customPlanEx.note}
                     onChange={e => setCustomPlanEx({ ...customPlanEx, note: e.target.value })}
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
@@ -1015,7 +1236,7 @@ export default function App() {
                       onChange={e => setCustomPlanEx({ ...customPlanEx, saveToDb: e.target.checked })}
                       className="accent-violet-600"
                     />
-                    Diese Übung auch für später in meiner Übungsdatenbank sichern
+                    Diese Übung auch in meiner Übungsdatenbank sichern
                   </label>
                   <button type="submit" className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold">
                     + Zum Trainingsplan hinzufügen
@@ -1023,7 +1244,6 @@ export default function App() {
                 </div>
               </form>
 
-              {/* AUS EIGENER DATENBANK HINZUFÜGEN */}
               {exercises.length > 0 && (
                 <div className="pt-2">
                   <h4 className="text-xs font-bold text-zinc-400 uppercase mb-2">
@@ -1045,15 +1265,14 @@ export default function App() {
               )}
             </div>
 
-            {/* AKTUELLE ÜBUNGEN IM PLAN BEARBEITEN */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
               <h3 className="text-sm font-bold text-white">
                 Aktive Übungen im Plan ({(plans[selectedClient] || []).length})
               </h3>
               {(plans[selectedClient] || []).length === 0 ? (
-                <p className="text-xs text-zinc-500">Der Plan ist aktuell leer. Füge oben deine gewünschten Übungen hinzu.</p>
+                <p className="text-xs text-zinc-500">Der Plan ist aktuell leer.</p>
               ) : (
-                (plans[selectedClient] || []).map((item, idx) => (
+                (plans[selectedClient] || []).map(item => (
                   <div key={item.id} className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
                     <div className="md:col-span-3">
                       <label className="text-[10px] text-zinc-500 block">Übungsname</label>
@@ -1112,26 +1331,32 @@ export default function App() {
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <HeartPulse className="w-5 h-5 text-violet-400" />
-                Wochen-Check-Up & Video-Analyse – {currentClientObj?.name}
+                {isCoach ? `Wochen-Check-Up & Video-Analyse – ${currentClientObj?.name}` : 'Mein Wochen-Check-Up & Coach-Feedback'}
               </h2>
               <div className="mt-4">
                 <label className="text-xs font-semibold text-violet-300 block mb-1.5">
-                  📋 Dein Coach-/Physio-Fazit & Plan-Anpassungen:
+                  📋 Coach-/Physio-Fazit & Anpassungen für die Woche:
                 </label>
-                <textarea
-                  rows={3}
-                  value={checkupNotes[selectedClient] || ''}
-                  onChange={(e) => setCheckupNotes({ ...checkupNotes, [selectedClient]: e.target.value })}
-                  placeholder="Halte hier deine Notizen für das wöchentliche Check-Up fest..."
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-sm text-white focus:border-violet-500 focus:outline-none"
-                />
+                {isCoach ? (
+                  <textarea
+                    rows={3}
+                    value={checkupNotes[selectedClient] || ''}
+                    onChange={(e) => setCheckupNotes({ ...checkupNotes, [selectedClient]: e.target.value })}
+                    placeholder="Schreibe hier dein Feedback für den Kunden rein..."
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-sm text-white focus:border-violet-500 focus:outline-none"
+                  />
+                ) : (
+                  <div className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-sm text-zinc-200">
+                    {checkupNotes[selectedClient] || 'Dein Coach hat noch keine neue Check-Up-Notiz hinterlegt.'}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="space-y-4">
               {(workoutLogs[selectedClient] || []).length === 0 ? (
                 <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center text-zinc-400 text-sm">
-                  Noch keine abgeschlossenen Trainings für dieses Profil vorhanden.
+                  Noch keine abgeschlossenen Trainings protokolliert.
                 </div>
               ) : (
                 (workoutLogs[selectedClient] || []).map(log => (
@@ -1175,7 +1400,7 @@ export default function App() {
 
                             {ex.sets && ex.sets.length > 0 && (
                               <div className="text-xs text-zinc-300">
-                                <strong>Sätze:</strong> {ex.sets.map((s, idx) => `${s.weight || 0}kg × ${s.reps || 0}`).join(' | ')}
+                                <strong>Sätze:</strong> {ex.sets.map(s => `${s.weight || 0}kg × ${s.reps || 0}`).join(' | ')}
                               </div>
                             )}
                             {ex.painArea && <p className="text-xs text-rose-300"><strong>Stelle:</strong> {ex.painArea}</p>}
@@ -1223,7 +1448,9 @@ export default function App() {
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-bold text-white">Körpergewicht & Umfänge – {currentClientObj?.name}</h2>
+                <h2 className="text-lg font-bold text-white">
+                  {isCoach ? `Körpergewicht & Umfänge – ${currentClientObj?.name}` : 'Meine Körperumfänge & Gewicht'}
+                </h2>
                 <p className="text-xs text-zinc-400">
                   Brust, Bauch, Taille, Po, Oberschenkel, Unterschenkel, Oberarm, Unterarm, Schultern & Gewicht.
                 </p>
@@ -1322,8 +1549,8 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== TAB 5: MEINE ÜBUNGSDATENBANK ==================== */}
-        {activeTab === 'exercises' && (
+        {/* ==================== TAB 5: ÜBUNGSDATENBANK (NUR COACH!) ==================== */}
+        {isCoach && activeTab === 'exercises' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3 flex-1 min-w-[240px]">
@@ -1381,24 +1608,34 @@ export default function App() {
         )}
       </main>
 
-      {/* MODAL: NEUES PROFIL / KUNDE */}
-      {showClientModal && (
+      {/* MODAL: NEUES KUNDENPROFIL MIT PIN ANLEGEN (NUR COACH) */}
+      {isCoach && showClientModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
           <form onSubmit={handleAddClient} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-md w-full space-y-4">
-            <h3 className="text-lg font-bold text-white">Neues Profil / Kunden anlegen</h3>
+            <h3 className="text-lg font-bold text-white">Neuen Kunden anlegen</h3>
             <div>
-              <label className="text-xs text-zinc-400 block mb-1">Name *</label>
+              <label className="text-xs text-zinc-400 block mb-1">Name des Kunden *</label>
               <input
-                type="text" required placeholder="z.B. Lukas, Anna oder Mein Diät-Plan..."
+                type="text" required placeholder="z.B. Lukas M."
                 value={newClient.name}
                 onChange={e => setNewClient({ ...newClient, name: e.target.value })}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
               />
             </div>
             <div>
+              <label className="text-xs text-zinc-400 block mb-1">Persönlicher Kunden-PIN (für Kunden-Login) *</label>
+              <input
+                type="text" required placeholder="z.B. 1234"
+                value={newClient.pin}
+                onChange={e => setNewClient({ ...newClient, pin: e.target.value })}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white font-bold tracking-widest"
+              />
+              <span className="text-[11px] text-zinc-500">Mit diesem Code sieht der Kunde nur seinen eigenen Trainingsplan.</span>
+            </div>
+            <div>
               <label className="text-xs text-zinc-400 block mb-1">Ziel / Fokus (optional)</label>
               <input
-                type="text" placeholder="z.B. Muskelaufbau, Reha, Kraft..."
+                type="text" placeholder="z.B. Muskelaufbau, Reha..."
                 value={newClient.goal}
                 onChange={e => setNewClient({ ...newClient, goal: e.target.value })}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
@@ -1406,7 +1643,7 @@ export default function App() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowClientModal(false)} className="px-4 py-2 rounded-xl bg-zinc-800 text-xs">Abbrechen</button>
-              <button type="submit" className="px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold">Profil erstellen</button>
+              <button type="submit" className="px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold">Kunde erstellen</button>
             </div>
           </form>
         </div>
@@ -1447,8 +1684,8 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: NEUE ÜBUNG FÜR DATENBANK */}
-      {showNewExerciseModal && (
+      {/* MODAL: NEUE ÜBUNG FÜR DATENBANK (NUR COACH) */}
+      {isCoach && showNewExerciseModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
           <form onSubmit={handleAddExerciseToDb} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-md w-full space-y-3">
             <h3 className="text-lg font-bold text-white">Eigene Übung in Datenbank speichern</h3>
@@ -1484,22 +1721,39 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: BACKUP & RESET */}
+      {/* MODAL: BACKUP, SYNC & COACH-PIN ÄNDERN */}
       {showBackupModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-md w-full space-y-4">
-            <h3 className="text-lg font-bold text-white">BIZEPS BÄR – Daten & Backup</h3>
+            <h3 className="text-lg font-bold text-white">BIZEPS BÄR – Daten & Austausch</h3>
+            <p className="text-xs text-zinc-400">
+              Hier kannst du deinen Trainingsstand als Datei speichern (z. B. um ihn zwischen Kunde und Coach per WhatsApp auszutauschen) oder ein Backup einspielen.
+            </p>
             <div className="space-y-2">
               <button onClick={exportBackup} className="w-full py-2.5 px-4 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold flex items-center justify-center gap-2">
-                <Download className="w-4 h-4" /> Backup herunterladen (.JSON)
+                <Download className="w-4 h-4" /> Datenstand herunterladen (.JSON)
               </button>
               <label className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer">
-                <Upload className="w-4 h-4" /> Backup-Datei laden
+                <Upload className="w-4 h-4" /> Datenstand / Kunden-Datei laden
                 <input type="file" accept=".json" onChange={importBackup} className="hidden" />
               </label>
-              <button onClick={clearAllData} className="w-full py-2.5 px-4 rounded-xl bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-xs font-bold flex items-center justify-center gap-2">
-                <RotateCcw className="w-4 h-4" /> Alles komplett leeren
-              </button>
+
+              {isCoach && (
+                <>
+                  <div className="pt-3 border-t border-zinc-800">
+                    <label className="text-xs text-zinc-400 block mb-1">Deinen eigenen Coach-PIN ändern:</label>
+                    <input
+                      type="text"
+                      value={coachPin}
+                      onChange={(e) => setCoachPin(e.target.value)}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white font-bold"
+                    />
+                  </div>
+                  <button onClick={clearAllData} className="w-full py-2.5 px-4 rounded-xl bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-xs font-bold flex items-center justify-center gap-2 mt-2">
+                    <RotateCcw className="w-4 h-4" /> Alles komplett auf Null zurücksetzen
+                  </button>
+                </>
+              )}
             </div>
             <div className="flex justify-end">
               <button onClick={() => setShowBackupModal(false)} className="px-4 py-1.5 rounded-lg bg-zinc-800 text-xs">Schließen</button>
