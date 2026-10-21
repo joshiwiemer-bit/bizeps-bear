@@ -1,0 +1,20 @@
+{
+  "name": "Bizeps Bär Coaching",
+  "short_name": "Bizeps Bär",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "https://emojicdn.elk.sh/🐻?style=apple",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://emojicdn.elk.sh/🐻?style=apple",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
