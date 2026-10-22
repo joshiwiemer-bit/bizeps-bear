@@ -7,10 +7,10 @@ export default function CoachFeedback({ clientName, clientLogs }) {
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-2">
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
           <HeartPulse className="w-5 h-5 text-violet-400" />
-          Trainings-Feedback & Historie – {clientName}
+          Trainings-Check-Up & Historie – {clientName}
         </h2>
         <p className="text-xs text-zinc-400">
-          Hier siehst du alle abgeschlossenen Workouts, Tagesformen und Leistungen der Tester.
+          Hier siehst du alle absolvierten Einheiten, getrennt nach Wochentagen, Tagesformen und Leistungen.
         </p>
       </div>
 
@@ -21,13 +21,16 @@ export default function CoachFeedback({ clientName, clientLogs }) {
       ) : (
         clientLogs.map((log) => (
           <div key={log.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4 shadow-xl">
-            {/* Kopfzeile des Logs */}
             <div className="flex justify-between items-center flex-wrap gap-2 border-b border-zinc-800 pb-3">
-              <div className="flex items-center gap-2 text-violet-300 font-bold text-sm">
-                <Calendar className="w-4 h-4" /> Datum: {log.date}
+              <div className="flex items-center gap-3">
+                <span className="bg-violet-600 text-white text-xs font-bold px-3 py-1 rounded-lg">
+                  {log.day || 'Training'}
+                </span>
+                <span className="text-zinc-400 text-xs flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" /> {log.date}
+                </span>
               </div>
               
-              {/* Metadaten: Schlaf, Energie, Schmerzen */}
               <div className="flex flex-wrap gap-3 text-xs">
                 <span className="bg-zinc-800 px-2.5 py-1 rounded-lg text-zinc-300 flex items-center gap-1">
                   <Moon className="w-3.5 h-3.5 text-indigo-400" /> Schlaf: {log.sleepHours || '-'} Std.
@@ -43,7 +46,6 @@ export default function CoachFeedback({ clientName, clientLogs }) {
               </div>
             </div>
 
-            {/* Übungen & Sätze */}
             <div className="space-y-3">
               <h4 className="text-xs uppercase font-bold text-zinc-400 tracking-wider flex items-center gap-1">
                 <Dumbbell className="w-3.5 h-3.5" /> Absolvierte Übungen
