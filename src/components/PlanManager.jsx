@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Trash2, Plus, Edit2, Save, X } from 'lucide-react';
+import { Trash2, Plus, Edit2, Save, X, Calendar } from 'lucide-react';
 
 export default function PlanManager({ clientName, plan, muscleGroups, customPlanEx, setCustomPlanEx, handleAddCustomExerciseToPlan, handleRemovePlanItem, handleUpdatePlanItem }) {
   
-  // State, um zu verfolgen, welche Übung gerade bearbeitet wird (ID oder null)
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [selectedDay, setSelectedDay] = useState('Montag');
+
+  const daysOfWeek = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 
   const toggleMuscleSelection = (muscleId, isEdit = false) => {
     if (isEdit) {
@@ -25,6 +27,11 @@ export default function PlanManager({ clientName, plan, muscleGroups, customPlan
     }
   };
 
+  const handleDayChange = (day) => {
+    setSelectedDay(day);
+    setCustomPlanEx({ ...customPlanEx, day: day });
+  };
+
   const startEditing = (item) => {
     setEditingId(item.id);
     setEditForm({
@@ -33,7 +40,8 @@ export default function PlanManager({ clientName, plan, muscleGroups, customPlan
       targetSets: item.targetSets,
       targetReps: item.targetReps,
       rir: item.rir || '',
-      note: item.note || ''
+      note: item.note || '',
+      day: item.day || 'Montag'
     });
   };
 
@@ -42,17 +50,43 @@ export default function PlanManager({ clientName, plan, muscleGroups, customPlan
     setEditingId(null);
   };
 
+  // Gefilterter Plan für den aktuell ausgewählten Wochentag
+  const filteredPlan = (plan || []).filter(item => (item.day || 'Montag') === selectedDay);
+
   return (
     <div className="space-y-6">
-      {/* Neue Übung hinzufügen */}
+      {/* Wochentag-Auswahl Tabs */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-3">
+        <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-violet-400" /> Wochentag auswählen für {clientName}
+        </h2>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {daysOfWeek.map(day => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => handleDayChange(day)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                selectedDay === day 
+                  ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/30' 
+                  : 'bg-zinc-800/80 text-zinc-400 hover:text-white'
+              }`}
+            >
+              {day}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Übung für den ausgewählten Tag hinzufügen */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-        <h2 className="text-lg font-bold text-white">Trainingsplan erstellen für {clientName}</h2>
+        <h3 className="text-lg font-bold text-white">Übung hinzufügen für {selectedDay}</h3>
         
         <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-4">
           <div>
             <label className="text-xs text-zinc-400 block mb-1">Übungsname</label>
             <input
-              type="text" required placeholder="z.B. Bankdrücken"
+              type="text" required placeholder="z.B. Schrägbank"
               value={customPlanEx.name} 
               onChange={e => setCustomPlanEx({ ...customPlanEx, name: e.target.value })}
               className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-sm text-white"
@@ -60,7 +94,7 @@ export default function PlanManager({ clientName, plan, muscleGroups, customPlan
           </div>
 
           <div>
-            <label className="text-xs text-zinc-400 block mb-2">Muskelgruppen (Mehrfachauswahl möglich)</label>
+            <label className="text-xs text-zinc-400 block mb-2">Muskelgruppen (Mehrfachauswahl)</label>
             <div className="flex flex-wrap gap-2">
               {muscleGroups.map(m => {
                 const isSelected = (customPlanEx.muscles || []).includes(m.id);
@@ -93,7 +127,7 @@ export default function PlanManager({ clientName, plan, muscleGroups, customPlan
               />
             </div>
             <div>
-              <label className="text-xs text-zinc-400 block mb-1">Wiederholungen oder Zeit</label>
+              <label className="text-xs text-zinc-400 block mb-1">Wiederholungen / Zeit</label>
               <input
                 type="text" placeholder="z.B. 8-10"
                 value={customPlanEx.targetReps} 
@@ -113,9 +147,9 @@ export default function PlanManager({ clientName, plan, muscleGroups, customPlan
           </div>
 
           <div>
-            <label className="text-xs text-zinc-400 block mb-1">Notiz / Ausführungshinweis</label>
+            <label className="text-xs text-zinc-400 block mb-1">Notiz / Hinweis</label>
             <input
-              type="text" placeholder="z.B. Saubere ROM..."
+              type="text" placeholder="z.B. Saubere Ausführung..."
               value={customPlanEx.note} 
               onChange={e => setCustomPlanEx({ ...customPlanEx, note: e.target.value })}
               className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-sm text-white"
@@ -123,24 +157,23 @@ export default function PlanManager({ clientName, plan, muscleGroups, customPlan
           </div>
 
           <button type="submit" className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-lg shadow-violet-600/25 flex items-center justify-center gap-1.5">
-            <Plus className="w-4 h-4" /> Übung zum Plan hinzufügen
+            <Plus className="w-4 h-4" /> Übung zu {selectedDay} hinzufügen
           </button>
         </form>
       </div>
 
-      {/* Plan-Liste mit Bearbeiten-Funktion */}
+      {/* Plan-Liste für den ausgewählten Tag */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-        <h3 className="text-sm font-bold text-white">Aktueller Plan von {clientName}</h3>
-        {(!plan || plan.length === 0) ? (
-          <p className="text-xs text-zinc-500">Noch keine Übungen eingetragen.</p>
+        <h3 className="text-sm font-bold text-white">Übungen am {selectedDay}</h3>
+        {filteredPlan.length === 0 ? (
+          <p className="text-xs text-zinc-500">Keine Übungen für {selectedDay} eingetragen.</p>
         ) : (
-          plan.map(item => {
+          filteredPlan.map(item => {
             const isEditing = editingId === item.id;
 
             return (
               <div key={item.id} className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-3">
                 {isEditing ? (
-                  /* BEARBEITUNGS-MODUS */
                   <div className="space-y-3">
                     <input
                       type="text"
@@ -148,6 +181,17 @@ export default function PlanManager({ clientName, plan, muscleGroups, customPlan
                       onChange={e => setEditForm({ ...editForm, name: e.target.value })}
                       className="w-full bg-zinc-900 border border-violet-500 rounded-lg p-2 text-sm text-white font-bold"
                     />
+
+                    <div>
+                      <label className="text-[10px] text-zinc-400 block mb-1">Wochentag zuweisen:</label>
+                      <select
+                        value={editForm.day || 'Montag'}
+                        onChange={e => setEditForm({ ...editForm, day: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded p-1.5 text-xs text-white"
+                      >
+                        {daysOfWeek.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
 
                     <div className="flex flex-wrap gap-1.5">
                       {muscleGroups.map(m => {
@@ -205,10 +249,12 @@ export default function PlanManager({ clientName, plan, muscleGroups, customPlan
                     </div>
                   </div>
                 ) : (
-                  /* NORMALER ANZEIGE-MODUS */
                   <div className="flex justify-between items-start gap-3">
                     <div className="space-y-1">
-                      <div className="font-bold text-white text-sm">{item.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-sm">{item.name}</span>
+                        <span className="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded font-semibold">{item.day || 'Montag'}</span>
+                      </div>
                       <div className="flex flex-wrap gap-1 text-[11px]">
                         {(item.muscles || ['Brust']).map(mId => (
                           <span key={mId} className="bg-violet-950 text-violet-300 border border-violet-800/50 px-2 py-0.5 rounded">
