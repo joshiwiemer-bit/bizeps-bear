@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
-import { Dumbbell, Users, Calendar, Award, HeartPulse, Share2, Lock } from 'lucide-react';
+import { Dumbbell, Users, Calendar, Award, HeartPulse, TrendingUp, Share2, Lock } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
 import WorkoutLogger from './components/WorkoutLogger';
 import RankOverview from './components/RankOverview';
 import PlanManager from './components/PlanManager';
 import CoachFeedback from './components/CoachFeedback';
+import ProgressHistory from './components/ProgressHistory';
 
 const INITIAL_CLIENTS = [
   { id: 'coach', name: 'Coach', role: 'Coach', pin: '9999' },
@@ -117,7 +118,7 @@ const db = getFirestore(app);
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
     try {
-      const saved = localStorage.getItem('bb_v22_session');
+      const saved = localStorage.getItem('bb_v23_session');
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
@@ -140,7 +141,6 @@ export default function App() {
     name: '', day: 'Montag', muscles: ['Brust'], targetSets: 3, targetReps: '8-10', rir: '2', note: ''
   });
 
-  // URL-Parameter prüfen (Direktlink für Kunden wie ?client=cassian)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlClient = params.get('client');
@@ -148,11 +148,10 @@ export default function App() {
       const session = { role: 'client', clientId: urlClient };
       setAuthSession(session);
       setSelectedClient(urlClient);
-      localStorage.setItem('bb_v22_session', JSON.stringify(session));
+      localStorage.setItem('bb_v23_session', JSON.stringify(session));
     }
   }, [clients]);
 
-  // Wenn Kunde eingeloggt, fest auf seine ID setzen
   useEffect(() => {
     if (authSession?.role === 'client') {
       setSelectedClient(authSession.clientId);
@@ -215,7 +214,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v22_session', JSON.stringify(session));
+      localStorage.setItem('bb_v23_session', JSON.stringify(session));
       return;
     }
 
@@ -224,7 +223,7 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v22_session', JSON.stringify(session));
+      localStorage.setItem('bb_v23_session', JSON.stringify(session));
       return;
     }
 
@@ -232,17 +231,10 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v22_session');
+    localStorage.removeItem('bb_v23_session');
     setAuthSession(null);
     setPinInput('');
     window.history.replaceState({}, document.title, window.location.pathname);
-  };
-
-  const copyClientLink = (clientId) => {
-    const url = `${window.location.origin}${window.location.pathname}?client=${clientId}`;
-    navigator.clipboard.writeText(url);
-    const c = clients.find(x => x.id === clientId);
-    agentsAlert(`Link für ${c?.name} kopiert!\nPIN: ${c?.pin}\n\nLink: ${url}`);
   };
 
   const isCoach = authSession?.role === 'coach';
@@ -318,7 +310,7 @@ export default function App() {
     });
   };
 
-  const finishWorkout = () => {
+  const finishWorkout = (dayName) => {
     const currentPlan = plans[selectedClient] || [];
     if (currentPlan.length === 0) return alert('Keine Übungen im Plan.');
 
@@ -331,7 +323,7 @@ export default function App() {
     const newLog = {
       id: 'w_' + Date.now(),
       date: new Date().toISOString().split('T')[0],
-      day: 'Montag',
+      day: dayName,
       sleepHours: Number(sessionMeta.sleepHours),
       energyLevel: Number(sessionMeta.energyLevel),
       painLevel: Number(sessionMeta.painLevel),
@@ -345,8 +337,18 @@ export default function App() {
 
     setWorkoutLogs(updatedLogs);
     saveDataToCloud({ workoutLogs: updatedLogs });
-    alert('Training erfolgreich gespeichert! +5 Wochen-Bonus gutgeschrieben & Ranks aktualisiert.');
-    setActiveTab('ranks');
+
+    // LOGGER FÜR DAS NÄCHSTE MAL ZURÜCKSETZEN (Vorlage wiederherstellen)
+    const resetSets = {};
+    currentPlan.forEach(item => {
+      resetSets[item.id] = Array.from({ length: Number(item.targetSets) || 3 }, () => ({
+        weight: '', reps: '', done: false
+      }));
+    });
+    setActiveWorkoutSets(resetSets);
+
+    alert(`${dayName}-Training erfolgreich gespeichert! Vorlage zurückgesetzt & Ranks aktualisiert.`);
+    setActiveTab('progress');
   };
 
   if (!authSession) {
@@ -365,11 +367,13 @@ export default function App() {
         { id: 'workout', label: 'Workout-Logger', icon: Dumbbell },
         { id: 'plans', label: 'Plan verwalten', icon: Calendar },
         { id: 'ranks', label: 'Muskel-Ranks (1-100)', icon: Award },
+        { id: 'progress', label: '📊 Verlauf & Fortschritt', icon: TrendingUp },
         { id: 'feedback', label: 'Check-Up & Feedback', icon: HeartPulse },
       ]
     : [
         { id: 'workout', label: 'Mein Training', icon: Dumbbell },
         { id: 'ranks', label: '🏆 Meine Muskel-Ranks', icon: Award },
+        { id: 'progress', label: '📊 Mein Verlauf', icon: TrendingUp },
       ];
 
   return (
@@ -474,6 +478,13 @@ export default function App() {
             finishWorkout={finishWorkout}
             sessionMeta={sessionMeta}
             setSessionMeta={setSessionMeta}
+          />
+        )}
+
+        {activeTab === 'progress' && (
+          <ProgressHistory 
+            clientName={currentClientObj?.name} 
+            clientLogs={workoutLogs[selectedClient]} 
           />
         )}
 
