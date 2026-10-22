@@ -113,7 +113,7 @@ const db = getFirestore(app);
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
     try {
-      const saved = localStorage.getItem('bb_v17_session');
+      const saved = localStorage.getItem('bb_v18_session');
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
@@ -192,7 +192,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v17_session', JSON.stringify(session));
+      localStorage.setItem('bb_v18_session', JSON.stringify(session));
       return;
     }
 
@@ -201,7 +201,7 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v17_session', JSON.stringify(session));
+      localStorage.setItem('bb_v18_session', JSON.stringify(session));
       return;
     }
 
@@ -209,7 +209,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v17_session');
+    localStorage.removeItem('bb_v18_session');
     setAuthSession(null);
     setPinInput('');
   };
@@ -379,64 +379,9 @@ export default function App() {
 
         <div className="max-w-7xl mx-auto mt-3 flex gap-2 overflow-x-auto pb-1">
           {visibleTabs.map(tab => {
-            TheIcon = tab.icon;
+            const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap ${
-                  activeTab === tab.id ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400'
-                }`}
-              >
-                <TheIcon className="w-4 h-4" /> {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 space-y-6">
-        {activeTab === 'ranks' && (
-          <RankOverview 
-            clientName={currentClientObj?.name} 
-            muscleRanks={muscleRanks} 
-            muscleGroups={MUSCLE_GROUPS} 
-          />
-        )}
-
-        {activeTab === 'workout' && (
-          <WorkoutLogger 
-            clientName={currentClientObj?.name} 
-            plan={plans[selectedClient]} 
-            activeWorkoutSets={activeWorkoutSets} 
-            handleSetChange={handleSetChange} 
-            toggleSetDone={toggleSetDone} 
-            finishWorkout={finishWorkout}
-            sessionMeta={sessionMeta}
-            setSessionMeta={setSessionMeta}
-          />
-        )}
-
-        {isCoach && activeTab === 'plans' && (
-          <PlanManager 
-            clientName={currentClientObj?.name} 
-            plan={plans[selectedClient]} 
-            muscleGroups={MUSCLE_GROUPS} 
-            customPlanEx={customPlanEx} 
-            setCustomPlanEx={setCustomPlanEx} 
-            handleAddCustomExerciseToPlan={handleAddCustomExerciseToPlan} 
-            handleRemovePlanItem={handleRemovePlanItem} 
-            handleUpdatePlanItem={handleUpdatePlanItem}
-          />
-        )}
-
-        {isCoach && activeTab === 'feedback' && (
-          <CoachFeedback 
-            clientName={currentClientObj?.name} 
-            clientLogs={workoutLogs[selectedClient]} 
-          />
-        )}
-      </main>
-    </div>
-  );
-}
+                className={`flex items-center gap-2 px
