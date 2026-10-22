@@ -1,28 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
 import { 
   Dumbbell, Users, BookOpen, Calendar, Plus, Check, Clock, 
   AlertTriangle, Activity, TrendingUp, Save, Download, Upload, 
-  RotateCcw, Search, Trash2, HeartPulse, Video, UserPlus, X, 
-  Lock, LogOut, ShieldCheck, Share2, KeyRound, Eye, Cloud, CloudOff
+  Search, Trash2, HeartPulse, Video, UserPlus, X, 
+  Lock, LogOut, ShieldCheck, Share2, KeyRound, Eye
 } from 'lucide-react';
 
-// --- DEINE FIREBASE CONFIG ---
-const firebaseConfig = {
-  apiKey: "AIzaSyAy9EauBU_ZpYQOVafdINZLRUHttCBpe4U",
-  authDomain: "bizepsbear.firebaseapp.com",
-  projectId: "bizepsbear",
-  storageBucket: "bizepsbear.firebasestorage.app",
-  messagingSenderId: "773561568629",
-  appId: "1:773561568629:web:59510580fc266ff980573c",
-  measurementId: "G-4M79M7LP8W"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// --- INITIALE DATEN (FALLS DATENBANK LEER IST) ---
 const INITIAL_CLIENTS = [
   { id: 'coach', name: 'Ich (Coach / Eigenes Training)', role: 'Coach', goal: 'Eigenes Training', pin: '9999' },
   { id: 'tester1', name: 'Tester 1', role: 'Kunde', goal: 'Hypertrophie', pin: '1001' },
@@ -42,9 +27,9 @@ const INITIAL_CLIENTS = [
   { id: 'tester15', name: 'Tester 15', role: 'Kunde', goal: 'Athletik', pin: '1015' },
   { id: 'tester16', name: 'Tester 16', role: 'Kunde', goal: 'Hypertrophie', pin: '1016' },
   { id: 'tester17', name: 'Tester 17', role: 'Kunde', goal: 'Kraftaufbau', pin: '1017' },
-  { id: 'tester18', name: 'Pookiepavel', role: 'Kunde', goal: 'Fettabbau', pin: '1018' },
-  { id: 'tester19', name: 'Aaron', role: 'Kunde', goal: 'Reha / Physio', pin: '1019' },
-  { id: 'tester20', name: 'Cassian', role: 'Kunde', goal: 'Athletik', pin: '1020' },
+  { id: 'tester18', name: 'Pavel', role: 'Kunde', goal: 'Fettabbau', pin: '1018' },
+  { id: 'tester19', name: 'AAron', role: 'Kunde', goal: 'Reha / Physio', pin: '1019' },
+  { id: 'tester20', name: 'CAssian', role: 'Kunde', goal: 'Athletik', pin: '1020' },
 ];
 
 const INITIAL_PLANS = {
@@ -69,9 +54,23 @@ const MEASUREMENT_METRICS = [
   { key: 'calf', label: 'Unterschenkel', unit: 'cm' },
 ];
 
+// FIREBASE CONFIG
+const firebaseConfig = {
+  apiKey: "AIzaSyAy9EauBU_ZpYQOVafdINZLRUHttCBpe4U",
+  authDomain: "bizepsbear.firebaseapp.com",
+  projectId: "bizepsbear",
+  storageBucket: "bizepsbear.firebasestorage.app",
+  messagingSenderId: "773561568629",
+  appId: "1:773561568629:web:59510580fc266ff980573c",
+  measurementId: "G-4M79M7LP8W"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
-    const saved = localStorage.getItem('bb_v6_session');
+    const saved = localStorage.getItem('bb_v7_session');
     return saved ? JSON.parse(saved) : null;
   });
   const [pinInput, setPinInput] = useState('');
@@ -82,7 +81,6 @@ export default function App() {
   const [selectedClient, setSelectedClient] = useState('coach');
   const [syncStatus, setSyncStatus] = useState('Lade Cloud...');
 
-  // --- APP STATE ---
   const [clients, setClients] = useState(INITIAL_CLIENTS);
   const [exercises, setExercises] = useState([]);
   const [plans, setPlans] = useState(INITIAL_PLANS);
@@ -93,8 +91,6 @@ export default function App() {
   // LIVE FIRESTORE SYNCHRONIZATION
   useEffect(() => {
     const docRef = doc(db, "bizeps_baer", "database");
-    
-    // Echtzeit-Listener (sobald sich in der Cloud was ändert, aktualisiert sich die App sofort)
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -107,7 +103,6 @@ export default function App() {
         if (data.coachPin) setCoachPin(data.coachPin);
         setSyncStatus('Live Sync aktiv');
       } else {
-        // Initiales Speichern, falls Datenbank leer
         setDoc(docRef, {
           clients: INITIAL_CLIENTS,
           exercises: [],
@@ -127,7 +122,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Funktion zum Speichern in Firestore
   const saveDataToCloud = async (newStates) => {
     setSyncStatus('Speichere...');
     try {
@@ -148,7 +142,6 @@ export default function App() {
     }
   };
 
-  // URL Direkt-Link Check (?client=...)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlClient = params.get('client');
@@ -156,14 +149,14 @@ export default function App() {
       const session = { role: 'client', clientId: urlClient };
       setAuthSession(session);
       setSelectedClient(urlClient);
-      localStorage.setItem('bb_v6_session', JSON.stringify(session));
+      localStorage.setItem('bb_v7_session', JSON.stringify(session));
     }
   }, [clients]);
 
   useEffect(() => {
     if (authSession?.role === 'client') {
       setSelectedClient(authSession.clientId);
-      if (activeTab === 'exercises') {
+      if (activeTab === 'plans' || activeTab === 'exercises') {
         setActiveTab('workout');
       }
     }
@@ -180,7 +173,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v6_session', JSON.stringify(session));
+      localStorage.setItem('bb_v7_session', JSON.stringify(session));
       setPinInput('');
       return;
     }
@@ -190,7 +183,7 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v6_session', JSON.stringify(session));
+      localStorage.setItem('bb_v7_session', JSON.stringify(session));
       setPinInput('');
       return;
     }
@@ -199,7 +192,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v6_session');
+    localStorage.removeItem('bb_v7_session');
     setAuthSession(null);
     setPinInput('');
     window.history.replaceState({}, document.title, window.location.pathname);
@@ -212,7 +205,7 @@ export default function App() {
     }
     const session = { role: 'client', clientId: selectedClient };
     setAuthSession(session);
-    localStorage.setItem('bb_v6_session', JSON.stringify(session));
+    localStorage.setItem('bb_v7_session', JSON.stringify(session));
   };
 
   const copyClientLink = (clientId) => {
@@ -222,7 +215,7 @@ export default function App() {
     alert(`Link für ${c?.name} kopiert!\nPIN: ${c?.pin}\n\nLink: ${url}`);
   };
 
-  // --- WORKOUT & STATE HANDLERS ---
+  // WORKOUT STATE
   const [activeWorkoutSets, setActiveWorkoutSets] = useState({});
   const [exerciseFeedback, setExerciseFeedback] = useState({});
   const [sessionMeta, setSessionMeta] = useState({ energyLevel: 8, sleepHours: 7.5, sessionNote: '' });
@@ -268,9 +261,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [timerActive, restTimer]);
 
-  const [showClientModal, setShowClientModal] = useState(false);
-  const [newClient, setNewClient] = useState({ name: '', goal: '', pin: '' });
-
   const [selectedMetric, setSelectedMetric] = useState('weight');
   const [chartRange, setChartRange] = useState('month');
   const [showMeasureModal, setShowMeasureModal] = useState(false);
@@ -278,10 +268,6 @@ export default function App() {
     date: new Date().toISOString().split('T')[0],
     weight: '', shoulders: '', chest: '', waist: '', belly: '', hips: '', upperArm: '', forearm: '', thigh: '', calf: ''
   });
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showNewExerciseModal, setShowNewExerciseModal] = useState(false);
-  const [newExercise, setNewExercise] = useState({ name: '', muscle: '', equipment: '', cues: '', mistakes: '' });
 
   const [videoSpeeds, setVideoSpeeds] = useState({});
   const [showBackupModal, setShowBackupModal] = useState(false);
@@ -318,7 +304,6 @@ export default function App() {
   };
 
   const handleUpdatePlanItem = (itemId, field, value) => {
-    if (!isCoach) return;
     const updatedPlans = {
       ...plans,
       [selectedClient]: (plans[selectedClient] || []).map(item =>
@@ -619,7 +604,7 @@ export default function App() {
               onClick={() => setShowBackupModal(true)}
               className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition"
             >
-              <Download className="w-3.5 h-3.5 text-violet-400" /> Backup
+              <Download className="w-3.5 h-3.5 text-violet-400" /> Cloud Info
             </button>
 
             <button
@@ -655,6 +640,7 @@ export default function App() {
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+        {/* WORKOUT TAB */}
         {activeTab === 'workout' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
@@ -770,16 +756,12 @@ export default function App() {
                           <span className="w-6 h-6 rounded-lg bg-violet-600/20 text-violet-400 text-xs font-bold flex items-center justify-center">
                             {idx + 1}
                           </span>
-                          {isCoach ? (
-                            <input
-                              type="text"
-                              value={planItem.name}
-                              onChange={(e) => handleUpdatePlanItem(planItem.id, 'name', e.target.value)}
-                              className="text-base font-bold text-white bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-violet-500 focus:outline-none"
-                            />
-                          ) : (
-                            <h3 className="text-base font-bold text-white">{planItem.name}</h3>
-                          )}
+                          <input
+                            type="text"
+                            value={planItem.name}
+                            onChange={(e) => handleUpdatePlanItem(planItem.id, 'name', e.target.value)}
+                            className="text-base font-bold text-white bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-violet-500 focus:outline-none"
+                          />
                           <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">{planItem.muscle}</span>
                         </div>
                         <p className="text-xs text-zinc-400 mt-1">
@@ -910,6 +892,22 @@ export default function App() {
                           />
                         </div>
                       </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-950/60 border border-zinc-800 rounded-xl p-3">
+                        <div className="flex items-center gap-2 text-xs text-zinc-300">
+                          <Video className="w-4 h-4 text-violet-400" />
+                          <span>Technik-Video:</span>
+                          {fb.videoName && <span className="text-violet-300 font-semibold">({fb.videoName})</span>}
+                        </div>
+                        <label className="px-3 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 text-xs font-semibold cursor-pointer">
+                          🎥 Video hochladen
+                          <input type="file" accept="video/*" onChange={(e) => handleVideoFileUpload(planItem.id, e)} className="hidden" />
+                        </label>
+                      </div>
+
+                      {fb.videoUrl && (
+                        <video src={fb.videoUrl} controls className="w-full max-h-60 rounded-xl bg-black border border-zinc-800" />
+                      )}
                     </div>
                   </div>
                 );
@@ -937,59 +935,200 @@ export default function App() {
           </div>
         )}
 
+        {/* PLANS TAB (VOLLSTÄNDIG AKTIVIERT FÜR COACH) */}
         {isCoach && activeTab === 'plans' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-              <h2 className="text-lg font-bold text-white">Plan verwalten für {currentClientObj?.name}</h2>
-              <p className="text-xs text-zinc-400">PIN: <strong className="text-violet-300">{currentClientObj?.pin}</strong></p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-lg font-bold text-white">Trainingsplan verwalten für {currentClientObj?.name}</h2>
+                  <p className="text-xs text-zinc-400">PIN dieses Testers: <strong className="text-violet-300">{currentClientObj?.pin}</strong></p>
+                </div>
+                {selectedClient !== 'coach' && (
+                  <button
+                    onClick={() => copyClientLink(selectedClient)}
+                    className="text-xs px-3 py-1.5 rounded-xl bg-violet-600/20 text-violet-300 border border-violet-500/30 font-semibold"
+                  >
+                    📲 Direkt-Link kopieren
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-bold text-violet-300">✍️ Übung zum Plan hinzufügen</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <input
+                    type="text" required placeholder="Übungsname"
+                    value={customPlanEx.name}
+                    onChange={e => setCustomPlanEx({ ...customPlanEx, name: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                  <input
+                    type="text" placeholder="Muskel"
+                    value={customPlanEx.muscle}
+                    onChange={e => setCustomPlanEx({ ...customPlanEx, muscle: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                  <input
+                    type="text" placeholder="Equipment"
+                    value={customPlanEx.equipment}
+                    onChange={e => setCustomPlanEx({ ...customPlanEx, equipment: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <input
+                    type="number" min="1" placeholder="Sätze"
+                    value={customPlanEx.targetSets}
+                    onChange={e => setCustomPlanEx({ ...customPlanEx, targetSets: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                  <input
+                    type="text" placeholder="Wdh (z.B. 8-10)"
+                    value={customPlanEx.targetReps}
+                    onChange={e => setCustomPlanEx({ ...customPlanEx, targetReps: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                  <input
+                    type="text" placeholder="RPE"
+                    value={customPlanEx.targetRpe}
+                    onChange={e => setCustomPlanEx({ ...customPlanEx, targetRpe: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                  <input
+                    type="text" placeholder="Tempo"
+                    value={customPlanEx.tempo}
+                    onChange={e => setCustomPlanEx({ ...customPlanEx, tempo: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                </div>
+                <button type="submit" className="px-5 py-2.5 rounded-xl bg-violet-600 text-white text-xs font-bold">
+                  + Hinzufügen
+                </button>
+              </form>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
+              <h3 className="text-sm font-bold text-white">Aktive Übungen im Plan von {currentClientObj?.name}</h3>
+              {(plans[selectedClient] || []).length === 0 ? (
+                <p className="text-xs text-zinc-500">Keine Übungen im Plan.</p>
+              ) : (
+                (plans[selectedClient] || []).map(item => (
+                  <div key={item.id} className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
+                    <div className="md:col-span-3">
+                      <label className="text-[10px] text-zinc-500 block">Übungsname</label>
+                      <input
+                        type="text"
+                        value={item.name}
+                        onChange={e => handleUpdatePlanItem(item.id, 'name', e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-[10px] text-zinc-500 block">Sätze</label>
+                      <input
+                        type="number"
+                        value={item.targetSets}
+                        onChange={e => handleUpdatePlanItem(item.id, 'targetSets', Number(e.target.value))}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-[10px] text-zinc-500 block">Wdh.</label>
+                      <input
+                        type="text"
+                        value={item.targetReps}
+                        onChange={e => handleUpdatePlanItem(item.id, 'targetReps', e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                    <div className="md:col-span-4">
+                      <label className="text-[10px] text-zinc-500 block">Coaching-Notiz</label>
+                      <input
+                        type="text"
+                        value={item.note}
+                        onChange={e => handleUpdatePlanItem(item.id, 'note', e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                    <div className="md:col-span-1 flex justify-end pt-3">
+                      <button
+                        onClick={() => handleRemovePlanItem(item.id)}
+                        className="p-2 rounded-lg bg-zinc-800 hover:bg-rose-950 text-zinc-400 hover:text-rose-400"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
 
+        {/* CHECKUP TAB */}
         {activeTab === 'checkup' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <HeartPulse className="w-5 h-5 text-violet-400" />
-                Wochen-Check-Up – {currentClientObj?.name}
+                Wochen-Check-Up & Feedbacks – {currentClientObj?.name}
               </h2>
               <div className="mt-4">
-                <label className="text-xs font-semibold text-violet-300 block mb-1.5">Coach-Feedback:</label>
+                <label className="text-xs font-semibold text-violet-300 block mb-1.5">Coach-Feedback / Notiz:</label>
                 {isCoach ? (
                   <textarea
                     rows={3}
                     value={checkupNotes[selectedClient] || ''}
                     onChange={(e) => handleUpdateCheckupNote(e.target.value)}
-                    placeholder="Feedback für Tester..."
+                    placeholder="Schreibe hier dein Feedback für diesen Tester..."
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-sm text-white"
                   />
                 ) : (
                   <div className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-sm text-zinc-200">
-                    {checkupNotes[selectedClient] || 'Noch kein Feedback vom Coach.'}
+                    {checkupNotes[selectedClient] || 'Noch kein Feedback vom Coach hinterlegt.'}
                   </div>
                 )}
               </div>
             </div>
 
             <div className="space-y-4">
+              <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">Protokollierte Workouts & Videos</h3>
               {(workoutLogs[selectedClient] || []).length === 0 ? (
                 <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center text-zinc-400 text-sm">
-                  Keine Trainingsprotokolle vorhanden.
+                  Keine Trainingsprotokolle für dieses Profil vorhanden.
                 </div>
               ) : (
                 (workoutLogs[selectedClient] || []).map(log => (
                   <div key={log.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
                     <div className="flex justify-between border-b border-zinc-800 pb-3 text-xs">
-                      <span>📅 {log.date}</span>
-                      <span>Energie: {log.energyLevel}/10 | Schlaf: {log.sleepHours}h</span>
+                      <span className="text-violet-300 font-bold">📅 {log.date}</span>
+                      <span>Energie: <strong>{log.energyLevel}/10</strong> | Schlaf: <strong>{log.sleepHours}h</strong></span>
                     </div>
+                    {log.sessionNote && <p className="text-xs text-zinc-400 italic">„{log.sessionNote}“</p>}
+                    
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {log.exercises.map((ex, i) => (
                         <div key={i} className="p-4 rounded-xl bg-zinc-800/50 border border-zinc-800 space-y-2">
-                          <div className="font-bold text-sm text-white">{ex.name}</div>
-                          <div className="text-xs text-zinc-300">
-                            {ex.sets?.map(s => `${s.weight || 0}kg × ${s.reps || 0}`).join(' | ')}
+                          <div className="flex justify-between">
+                            <span className="font-bold text-sm text-white">{ex.name}</span>
+                            {ex.painLevel > 0 ? (
+                              <span className="text-xs px-2 py-0.5 rounded bg-rose-500/20 text-rose-300">Schmerz: {ex.painLevel}/10</span>
+                            ) : (
+                              <span className="text-xs text-emerald-400">Schmerzfrei</span>
+                            )}
                           </div>
+                          <div className="text-xs text-zinc-300">
+                            <strong>Sätze:</strong> {ex.sets?.map(s => `${s.weight || 0}kg × ${s.reps || 0}`).join(' | ')}
+                          </div>
+                          {ex.painArea && <p className="text-xs text-rose-300">Stelle: {ex.painArea}</p>}
+                          {ex.note && <p className="text-xs text-zinc-400">Notiz: {ex.note}</p>}
+                          {ex.videoUrl && (
+                            <div className="pt-2">
+                              <span className="text-xs text-violet-300 font-semibold block mb-1">🎥 Eingereichtes Technik-Video:</span>
+                              <video src={ex.videoUrl} controls className="w-full max-h-48 rounded-lg bg-black" />
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1000,10 +1139,14 @@ export default function App() {
           </div>
         )}
 
+        {/* BODY TAB */}
         {activeTab === 'body' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex justify-between items-center">
-              <h2 className="text-lg font-bold text-white">Körperumfänge – {currentClientObj?.name}</h2>
+              <div>
+                <h2 className="text-lg font-bold text-white">Körperumfänge – {currentClientObj?.name}</h2>
+                <p className="text-xs text-zinc-400">Gewicht & Umfänge eintragen und verfolgen</p>
+              </div>
               <button onClick={() => setShowMeasureModal(true)} className="px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold">
                 + Messung eintragen
               </button>
@@ -1016,7 +1159,7 @@ export default function App() {
                   <button
                     key={m.key}
                     onClick={() => setSelectedMetric(m.key)}
-                    className={`p-3.5 rounded-2xl border text-left ${selectedMetric === m.key ? 'bg-violet-950/40 border-violet-500' : 'bg-zinc-900 border-zinc-800'}`}
+                    className={`p-3.5 rounded-2xl border text-left transition ${selectedMetric === m.key ? 'bg-violet-950/40 border-violet-500' : 'bg-zinc-900 border-zinc-800'}`}
                   >
                     <div className="text-xs text-zinc-400">{m.label}</div>
                     <div className="text-lg font-black text-white mt-1">{latest} {m.unit}</div>
@@ -1028,6 +1171,7 @@ export default function App() {
         )}
       </main>
 
+      {/* MODALS */}
       {showMeasureModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
           <form onSubmit={handleSaveMeasurement} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1053,10 +1197,10 @@ export default function App() {
       )}
 
       {showBackupModal && (
-        <div className="Header-Modals fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-md w-full space-y-4">
-            <h3 className="text-lg font-bold text-white">Cloud Status</h3>
-            <p className="text-xs text-zinc-400">Deine Daten werden jetzt zentral über Firebase Firestore in Echtzeit synchronisiert.</p>
+            <h3 className="text-lg font-bold text-white">Cloud Status & Sync</h3>
+            <p className="text-xs text-zinc-400">Alle Daten werden in Echtzeit über Firebase Firestore synchronisiert. Status: <strong className="text-emerald-400">{syncStatus}</strong></p>
             <div className="flex justify-end pt-2">
               <button onClick={() => setShowBackupModal(false)} className="px-4 py-1.5 rounded-lg bg-zinc-800 text-xs">Schließen</button>
             </div>
