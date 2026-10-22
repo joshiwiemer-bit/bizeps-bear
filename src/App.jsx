@@ -62,7 +62,6 @@ const MEASUREMENT_METRICS = [
   { key: 'calf', label: 'Unterschenkel', unit: 'cm' },
 ];
 
-// Die 9 Ränge von Holz bis Maggus (jeweils 1-100 Punkte)
 const RANKS_LIST = [
   { name: 'Holz 🪵', color: 'text-stone-400 bg-stone-900 border-stone-700' },
   { name: 'Bronze 🥉', color: 'text-amber-600 bg-amber-950/30 border-amber-700' },
@@ -75,23 +74,20 @@ const RANKS_LIST = [
   { name: 'Maggus 🐻', color: 'text-amber-300 bg-amber-950/40 border-amber-500' },
 ];
 
-// Bestimmt die Punkte einer Übung (schwere Grundübungen geben mehr, Isos weniger)
 function getExercisePointValue(exerciseName = '') {
   const name = exerciseName.toLowerCase();
   if (name.includes('bankdrücken') || name.includes('kniebeuge') || name.includes('kreuzheben') || name.includes('klimmzug')) {
-    return 3.0; // Schwerer Basis-Punktwert pro starkem Satz
+    return 3.0;
   }
   if (name.includes('rudern') || name.includes('schulterdrücken') || name.includes('dips') || name.includes('beinpresse')) {
     return 2.5;
   }
-  return 1.5; // Standard für Isolationsübungen
+  return 1.5;
 }
 
-// Berechnet die exakten Punkte pro Muskelgruppe basierend auf Logs, Boni und Strafen
 function calculateMuscleRank(clientPlans, clientLogs, muscleId) {
-  let earnedPoints = 10; // Startpunkte
+  let earnedPoints = 10;
 
-  // 1. Durchlaufe alle absolvierten Workouts und berechne Übungs-Punkte
   clientLogs.forEach(log => {
     log.exercises?.forEach(ex => {
       const planItem = clientPlans.find(p => p.id === ex.id || p.name.toLowerCase() === ex.name.toLowerCase());
@@ -103,7 +99,6 @@ function calculateMuscleRank(clientPlans, clientLogs, muscleId) {
           const w = parseFloat(s.weight);
           const r = parseInt(s.reps);
           if (!isNaN(w) && !isNaN(r) && s.done) {
-            // Pro absolviertem Satz gibt es Punkte (skaliert leicht mit Gewicht/Wdh)
             earnedPoints += baseVal * (w > 0 ? Math.min(1.5, 0.5 + (w / 100)) : 1);
           }
         });
@@ -111,27 +106,21 @@ function calculateMuscleRank(clientPlans, clientLogs, muscleId) {
     });
   });
 
-  // 2. Strafen für nicht gemachte Übungen im Plan oder verpasste Tage
-  // (Wir prüfen die letzten Logs auf ausgelassene Übungen)
   let penaltyPoints = 0;
   if (clientLogs.length > 0) {
-    const lastLog = clientLogs[0]; // Letztes Training
+    const lastLog = clientLogs[0];
     const lastDate = new Date(lastLog.date);
     const today = new Date();
     const diffDays = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
-
-    // 4-Tage Inaktivitäts-Regel (-5 Punkte pro Tag ab Tag 5)
+    
     if (diffDays > 4) {
       penaltyPoints += (diffDays - 4) * 5;
     }
   }
 
-  // 3. Wochen-Bonus (+5 Punkte wenn Check-Up oder Trainings-Logs vorhanden sind)
-  let bonusPoints = clientLogs.length * 5; // Jedes erfolgreich beendete Workout bringt den Wochenbonus in die Wertung
-
+  let bonusPoints = clientLogs.length * 5;
   const netPoints = Math.max(1, earnedPoints + bonusPoints - penaltyPoints);
 
-  // Rang-Zuordnung (1-100 Punkte pro Rang)
   let rankIndex = Math.floor((netPoints - 1) / 100);
   if (rankIndex >= RANKS_LIST.length) rankIndex = RANKS_LIST.length - 1;
 
@@ -141,13 +130,12 @@ function calculateMuscleRank(clientPlans, clientLogs, muscleId) {
   return {
     rankTitle: RANKS_LIST[rankIndex].name,
     color: RANKS_LIST[rankIndex].color,
-    points: currentRankPoints, // Exakt 1 bis 100
+    points: currentRankPoints,
     totalNet: netPoints,
     isPenalized: penaltyPoints > 0
   };
 }
 
-// FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyAy9EauBU_ZpYQOVafdINZLRUHttCBpe4U",
   authDomain: "bizepsbear.firebaseapp.com",
@@ -303,7 +291,6 @@ export default function App() {
     alert(`Link für ${c?.name} kopiert!\nPIN: ${c?.pin}\n\nLink: ${url}`);
   };
 
-  // Muskel-Ranks Berechnung mit Übungs-Punkten, Wochen-Bonus & Strafen
   const muscleRanks = useMemo(() => {
     const clientPlans = plans[selectedClient] || [];
     const clientLogs = workoutLogs[selectedClient] || [];
@@ -316,7 +303,6 @@ export default function App() {
     return ranks;
   }, [plans, workoutLogs, selectedClient]);
 
-  // WORKOUT STATE
   const [activeWorkoutSets, setActiveWorkoutSets] = useState({});
   const [exerciseFeedback, setExerciseFeedback] = useState({});
   const [sessionMeta, setSessionMeta] = useState({ energyLevel: 8, sleepHours: 7.5, sessionNote: '' });
@@ -564,7 +550,6 @@ export default function App() {
   const currentMetricObj = MEASUREMENT_METRICS.find(m => m.key === selectedMetric) || MEASUREMENT_METRICS[0];
   const currentClientObj = clients.find(c => c.id === selectedClient) || clients[0];
 
-  // LOGIN SCREEN
   if (!authSession) {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4 font-sans">
@@ -743,7 +728,6 @@ export default function App() {
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
         
-        {/* ==================== RANKS TAB (1-100 PUNKTE + BONUS & STRAFEN) ==================== */}
         {activeTab === 'ranks' && (
           <div className="space-y-6">
             <div className="bg-gradient-to-r from-violet-900/40 via-zinc-900 to-zinc-900 border border-violet-500/30 rounded-3xl p-6 shadow-xl flex items-center justify-between flex-wrap gap-4">
@@ -780,7 +764,6 @@ export default function App() {
                       {rank.rankTitle}
                     </div>
 
-                    {/* Fortschrittsbalken 1 bis 100 */}
                     <div className="w-full bg-black/40 h-2.5 rounded-full overflow-hidden border border-white/10">
                       <div 
                         className="bg-gradient-to-r from-violet-500 to-amber-400 h-full transition-all duration-500" 
@@ -794,7 +777,6 @@ export default function App() {
           </div>
         )}
 
-        {/* WORKOUT TAB */}
         {activeTab === 'workout' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
@@ -1075,7 +1057,6 @@ export default function App() {
           </div>
         )}
 
-        {/* PLANS TAB */}
         {isCoach && activeTab === 'plans' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
@@ -1113,7 +1094,6 @@ export default function App() {
           </div>
         )}
 
-        {/* CHECKUP TAB */}
         {activeTab === 'checkup' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
@@ -1141,7 +1121,6 @@ export default function App() {
           </div>
         )}
 
-        {/* BODY TAB */}
         {activeTab === 'body' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex justify-between items-center">
@@ -1170,7 +1149,6 @@ export default function App() {
         )}
       </main>
 
-      {/* MODALS */}
       {showMeasureModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
           <form onSubmit={handleSaveMeasurement} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto">
