@@ -112,7 +112,7 @@ const db = getFirestore(app);
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
     try {
-      const saved = localStorage.getItem('bb_v15_session');
+      const saved = localStorage.getItem('bb_v16_session');
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
@@ -191,7 +191,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v15_session', JSON.stringify(session));
+      localStorage.setItem('bb_v16_session', JSON.stringify(session));
       return;
     }
 
@@ -200,7 +200,7 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v15_session', JSON.stringify(session));
+      localStorage.setItem('bb_v16_session', JSON.stringify(session));
       return;
     }
 
@@ -208,7 +208,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v15_session');
+    localStorage.removeItem('bb_v16_session');
     setAuthSession(null);
     setPinInput('');
   };
@@ -247,6 +247,17 @@ export default function App() {
     setPlans(updatedPlans);
     saveDataToCloud({ plans: updatedPlans });
     setCustomPlanEx({ name: '', muscles: ['Brust'], targetSets: 3, targetReps: '8-10', rir: '2', note: '' });
+  };
+
+  const handleUpdatePlanItem = (itemId, updatedData) => {
+    const updatedPlans = {
+      ...plans,
+      [selectedClient]: (plans[selectedClient] || []).map(item => 
+        item.id === itemId ? { ...item, ...updatedData } : item
+      )
+    };
+    setPlans(updatedPlans);
+    saveDataToCloud({ plans: updatedPlans });
   };
 
   const handleRemovePlanItem = (itemId) => {
@@ -413,6 +424,7 @@ export default function App() {
             setCustomPlanEx={setCustomPlanEx} 
             handleAddCustomExerciseToPlan={handleAddCustomExerciseToPlan} 
             handleRemovePlanItem={handleRemovePlanItem} 
+            handleUpdatePlanItem={handleUpdatePlanItem}
           />
         )}
       </main>
