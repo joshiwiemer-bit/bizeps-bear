@@ -5,15 +5,13 @@ export default function WorkoutLogger({ clientName, plan, activeWorkoutSets, han
   const [selectedDay, setSelectedDay] = useState('Montag');
   const daysOfWeek = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 
-  // Nur die Übungen für den ausgewählten Wochentag anzeigen
   const filteredPlan = (plan || []).filter(item => (item.day || 'Montag') === selectedDay);
 
   return (
     <div className="space-y-6">
-      {/* Wochentag-Auswahl für das Training */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-3">
         <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-violet-400" /> Welchen Tag trainierst du?
+          <Calendar className="w-4 h-4 text-violet-400" /> Welchen Wochentag trainierst du?
         </h2>
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {daysOfWeek.map(day => (
@@ -33,7 +31,6 @@ export default function WorkoutLogger({ clientName, plan, activeWorkoutSets, han
         </div>
       </div>
 
-      {/* Tagesform & Check-In */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
         <h2 className="text-lg font-bold text-white">Tagesform ({selectedDay}) – {clientName}</h2>
         
@@ -68,14 +65,16 @@ export default function WorkoutLogger({ clientName, plan, activeWorkoutSets, han
         </div>
       </div>
 
-      {/* Workout Sätze eintragen */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex justify-between items-center flex-wrap gap-4">
         <div>
           <h2 className="text-lg font-bold text-white">Sätze für {selectedDay}</h2>
-          <p className="text-xs text-zinc-400">Trage deine Gewichte ein und schließe das Training ab.</p>
+          <p className="text-xs text-zinc-400">Nach dem Speichern wird der Logger für das nächste Mal zurückgesetzt.</p>
         </div>
-        <button onClick={finishWorkout} className="px-4 py-2.5 rounded-xl bg-violet-600 text-white font-semibold text-sm shadow-lg shadow-violet-600/25">
-          {selectedDay}-Training speichern
+        <button 
+          onClick={() => finishWorkout(selectedDay)} 
+          className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm shadow-lg shadow-violet-600/25 transition"
+        >
+          {selectedDay}-Training abschließen & speichern
         </button>
       </div>
 
