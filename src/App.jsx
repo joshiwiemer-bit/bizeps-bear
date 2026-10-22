@@ -23,8 +23,8 @@ const INITIAL_CLIENTS = [
 ];
 
 const INITIAL_PLANS = {
-  coach: [{ id: 'p_c1', name: 'Bankdrücken', muscle: 'Brust', targetSets: 3, targetReps: '6-8' }],
-  cassian: [{ id: 'p_cas1', name: 'Kniebeuge', muscle: 'Beine', targetSets: 3, targetReps: '8-10' }]
+  coach: [{ id: 'p_c1', name: 'Bankdrücken', muscles: ['Brust', 'Schultern', 'Arme'], targetSets: 3, targetReps: '6-8', rir: '2', note: 'Sauberer Stopp' }],
+  cassian: [{ id: 'p_cas1', name: 'Kniebeuge', muscles: ['Beine', 'Bauch'], targetSets: 3, targetReps: '8-10', rir: '1', note: 'Tiefe halten' }]
 };
 
 const MUSCLE_GROUPS = [
@@ -54,8 +54,10 @@ function calculateMuscleRank(clientPlans = [], clientLogs = [], muscleId = '') {
     clientLogs.forEach(log => {
       log?.exercises?.forEach(ex => {
         const planItem = clientPlans.find(p => p.id === ex.id || (p.name && ex.name && p.name.toLowerCase() === ex.name.toLowerCase()));
-        const muscle = planItem ? planItem.muscle : 'Brust';
-        if (muscle === muscleId) {
+        const muscles = planItem?.muscles || [planItem?.muscle || 'Brust'];
+        
+        // Wenn die Muskelgruppe in der Übung vorkommt, Punkte vergeben
+        if (muscles.includes(muscleId)) {
           ex?.sets?.forEach(s => {
             const w = parseFloat(s?.weight);
             if (!isNaN(w) && s?.done) {
@@ -111,7 +113,7 @@ const db = getFirestore(app);
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
     try {
-      const saved = localStorage.getItem('bb_v14_session');
+      const saved = localStorage.getItem('bb_v15_session');
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
@@ -127,9 +129,11 @@ export default function App() {
   const [plans, setPlans] = useState(INITIAL_PLANS);
   const [workoutLogs, setWorkoutLogs] = useState({});
   const [activeWorkoutSets, setActiveWorkoutSets] = useState({});
+  
+  const [sessionMeta, setSessionMeta] = useState({ sleepHours: 8, energyLevel: 8, painLevel: 1 });
 
   const [customPlanEx, setCustomPlanEx] = useState({
-    name: '', muscle: 'Brust', targetSets: 3, targetReps: '8-10', note: ''
+    name: '', muscles: ['Brust'], targetSets: 3, targetReps: '8-10', rir: '2', note: ''
   });
 
   useEffect(() => {
@@ -188,7 +192,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v14_session', JSON.stringify(session));
+      localStorage.setItem('bb_v15_session', JSON.stringify(session));
       return;
     }
 
@@ -197,15 +201,15 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v14_session', JSON.stringify(session));
+      localStorage.setItem('bb_v15_session', JSON.stringify(session));
       return;
     }
 
-    setLoginError('Ungültiger PIN! (Coach: 9999, Cassian: 1001, Sky: 1002, Aaron: 1003, Pookiepavel: 1004, Celina: 1005)');
+    setLoginError('Ungültiger PIN! (Coach: 9999, Freunde: 1001-1005)');
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v14_session');
+    localStorage.removeItem('bb_v15_session');
     setAuthSession(null);
     setPinInput('');
   };
@@ -230,11 +234,11 @@ export default function App() {
     const newPlanItem = {
       id: 'plan_ex_' + Date.now(),
       name: customPlanEx.name.trim(),
-      muscle: customPlanEx.muscle,
+      muscles: customPlanEx.muscles.length > 0 ? customPlanEx.muscles : ['Brust'],
       targetSets: Number(customPlanEx.targetSets) || 3,
       targetReps: customPlanEx.targetReps || '8-10',
+      rir: customPlanEx.rir || '2',
       note: customPlanEx.note || '',
-      lastLog: 'Neu'
     };
 
     const updatedPlans = {
@@ -243,7 +247,7 @@ export default function App() {
     };
     setPlans(updatedPlans);
     saveDataToCloud({ plans: updatedPlans });
-    setCustomPlanEx({ name: '', muscle: 'Brust', targetSets: 3, targetReps: '8-10', note: '' });
+    setCustomPlanEx({ name: '', muscles: ['Brust'], targetSets: 3, targetReps: '8-10', rir: '2', note: '' });
   };
 
   const handleRemovePlanItem = (itemId) => {
@@ -284,6 +288,9 @@ export default function App() {
     const newLog = {
       id: 'w_' + Date.now(),
       date: new Date().toISOString().split('T')[0],
+      sleepHours: Number(sessionMeta.sleepHours),
+      energyLevel: Number(sessionMeta.energyLevel),
+      painLevel: Number(sessionMeta.painLevel),
       exercises: loggedExercises
     };
 
@@ -294,7 +301,7 @@ export default function App() {
 
     setWorkoutLogs(updatedLogs);
     saveDataToCloud({ workoutLogs: updatedLogs });
-    alert('Training gespeichert! +5 Wochen-Bonus gutgeschrieben.');
+    alert('Training erfolgreich gespeichert! +5 Wochen-Bonus gutgeschrieben & Ranks aktualisiert.');
     setActiveTab('ranks');
   };
 
@@ -392,7 +399,9 @@ export default function App() {
             activeWorkoutSets={activeWorkoutSets} 
             handleSetChange={handleSetChange} 
             toggleSetDone={toggleSetDone} 
-            finishWorkout={finishWorkout} 
+            finishWorkout={finishWorkout}
+            sessionMeta={sessionMeta}
+            setSessionMeta={setSessionMeta}
           />
         )}
 
