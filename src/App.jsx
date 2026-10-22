@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
-import { Dumbbell, Users, Calendar, Award, HeartPulse } from 'lucide-react';
+import { Dumbbell, Users, Calendar, Award, HeartPulse, Share2, Lock } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
 import WorkoutLogger from './components/WorkoutLogger';
@@ -25,12 +25,7 @@ const INITIAL_CLIENTS = [
 
 const INITIAL_PLANS = {
   coach: [
-    { id: 'p_mo_1', name: 'Schrägbank', day: 'Montag', muscles: ['Brust', 'Schultern', 'Arme'], targetSets: 2, targetReps: '5', rir: '2', note: 'Push' },
-    { id: 'p_mo_2', name: 'Seitheben', day: 'Montag', muscles: ['Schultern'], targetSets: 3, targetReps: '10', rir: '2', note: 'Push' },
-    { id: 'p_di_1', name: 'Klimmzug', day: 'Dienstag', muscles: ['Rücken', 'Arme'], targetSets: 2, targetReps: '5', rir: '2', note: 'Pull' },
-    { id: 'p_mi_1', name: 'Pendulum / Hackenschmidt', day: 'Mittwoch', muscles: ['Beine'], targetSets: 3, targetReps: '10', rir: '2', note: 'Beine' },
-    { id: 'p_do_1', name: 'Benchpress', day: 'Donnerstag', muscles: ['Brust', 'Schultern', 'Arme'], targetSets: 2, targetReps: '8', rir: '2', note: 'Push 2' },
-    { id: 'p_fr_1', name: 'Langhantelrudern', day: 'Freitag', muscles: ['Rücken'], targetSets: 2, targetReps: '8', rir: '2', note: 'Pull 2' }
+    { id: 'p_mo_1', name: 'Schrägbank', day: 'Montag', muscles: ['Brust', 'Schultern', 'Arme'], targetSets: 2, targetReps: '5', rir: '2', note: 'Push' }
   ],
   cassian: [
     { id: 'p_cas1', name: 'Kniebeuge', day: 'Montag', muscles: ['Beine', 'Bauch'], targetSets: 3, targetReps: '8-10', rir: '1', note: 'Tiefe halten' }
@@ -122,7 +117,7 @@ const db = getFirestore(app);
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
     try {
-      const saved = localStorage.getItem('bb_v21_session');
+      const saved = localStorage.getItem('bb_v22_session');
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
@@ -144,6 +139,25 @@ export default function App() {
   const [customPlanEx, setCustomPlanEx] = useState({
     name: '', day: 'Montag', muscles: ['Brust'], targetSets: 3, targetReps: '8-10', rir: '2', note: ''
   });
+
+  // URL-Parameter prüfen (Direktlink für Kunden wie ?client=cassian)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlClient = params.get('client');
+    if (urlClient && clients.some(c => c.id === urlClient)) {
+      const session = { role: 'client', clientId: urlClient };
+      setAuthSession(session);
+      setSelectedClient(urlClient);
+      localStorage.setItem('bb_v22_session', JSON.stringify(session));
+    }
+  }, [clients]);
+
+  // Wenn Kunde eingeloggt, fest auf seine ID setzen
+  useEffect(() => {
+    if (authSession?.role === 'client') {
+      setSelectedClient(authSession.clientId);
+    }
+  }, [authSession]);
 
   useEffect(() => {
     try {
@@ -201,7 +215,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v21_session', JSON.stringify(session));
+      localStorage.setItem('bb_v22_session', JSON.stringify(session));
       return;
     }
 
@@ -210,17 +224,25 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v21_session', JSON.stringify(session));
+      localStorage.setItem('bb_v22_session', JSON.stringify(session));
       return;
     }
 
-    setLoginError('Ungültiger PIN! (Coach: 9999, Freunde: 1001-1005)');
+    setLoginError('Ungültiger PIN! (Coach: 9999, Kunden: 1001-1010)');
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v21_session');
+    localStorage.removeItem('bb_v22_session');
     setAuthSession(null);
     setPinInput('');
+    window.history.replaceState({}, document.title, window.location.pathname);
+  };
+
+  const copyClientLink = (clientId) => {
+    const url = `${window.location.origin}${window.location.pathname}?client=${clientId}`;
+    navigator.clipboard.writeText(url);
+    const c = clients.find(x => x.id === clientId);
+    agentsAlert(`Link für ${c?.name} kopiert!\nPIN: ${c?.pin}\n\nLink: ${url}`);
   };
 
   const isCoach = authSession?.role === 'coach';
@@ -309,7 +331,7 @@ export default function App() {
     const newLog = {
       id: 'w_' + Date.now(),
       date: new Date().toISOString().split('T')[0],
-      day: 'Montag', // Kann erweitert werden
+      day: 'Montag',
       sleepHours: Number(sessionMeta.sleepHours),
       energyLevel: Number(sessionMeta.energyLevel),
       painLevel: Number(sessionMeta.painLevel),
@@ -359,29 +381,56 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-black text-white">BIZEPS BÄR</h1>
-                {isCoach && <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-bold">COACH</span>}
+                {isCoach ? (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-bold">COACH</span>
+                ) : (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
+                    Profil: {currentClientObj?.name}
+                  </span>
+                )}
               </div>
               <span className="text-[11px] text-emerald-400">{syncStatus}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {isCoach && (
-              <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5">
-                <Users className="w-4 h-4 text-violet-400" />
-                <select
-                  value={selectedClient}
-                  onChange={(e) => setSelectedClient(e.target.value)}
-                  className="bg-transparent text-sm font-semibold text-white focus:outline-none"
-                >
-                  {clients.map(c => (
-                    <option key={c.id} value={c.id} className="bg-zinc-900 text-white">
-                      {c.name} (PIN: {c.pin})
-                    </option>
-                  ))}
-                </select>
+            {isCoach ? (
+              <>
+                <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5">
+                  <Users className="w-4 h-4 text-violet-400" />
+                  <select
+                    value={selectedClient}
+                    onChange={(e) => setSelectedClient(e.target.value)}
+                    className="bg-transparent text-sm font-semibold text-white focus:outline-none"
+                  >
+                    {clients.map(c => (
+                      <option key={c.id} value={c.id} className="bg-zinc-900 text-white">
+                        {c.name} (PIN: {c.pin})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedClient !== 'coach' && (
+                  <button
+                    onClick={() => {
+                      const url = `${window.location.origin}${window.location.pathname}?client=${selectedClient}`;
+                      navigator.clipboard.writeText(url);
+                      alert(`Direktlink für ${currentClientObj?.name} kopiert!\n\n${url}`);
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition shadow-lg"
+                  >
+                    <Share2 className="w-3.5 h-3.5" /> Link kopieren
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center gap-2 bg-zinc-800/80 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-zinc-300">
+                <Lock className="w-3.5 h-3.5 text-violet-400" />
+                <span>Geschützter Kunden-Bereich</span>
               </div>
             )}
+
             <button onClick={handleLogout} className="px-3 py-1.5 rounded-xl bg-zinc-800 text-xs text-zinc-300">
               Sperren
             </button>
