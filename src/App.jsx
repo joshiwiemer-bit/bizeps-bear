@@ -384,4 +384,59 @@ export default function App() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap ${
+                  activeTab === tab.id ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400'
+                }`}
+              >
+                <Icon className="w-4 h-4" /> {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 space-y-6">
+        {activeTab === 'ranks' && (
+          <RankOverview 
+            clientName={currentClientObj?.name} 
+            muscleRanks={muscleRanks} 
+            muscleGroups={MUSCLE_GROUPS} 
+          />
+        )}
+
+        {activeTab === 'workout' && (
+          <WorkoutLogger 
+            clientName={currentClientObj?.name} 
+            plan={plans[selectedClient]} 
+            activeWorkoutSets={activeWorkoutSets} 
+            handleSetChange={handleSetChange} 
+            toggleSetDone={toggleSetDone} 
+            finishWorkout={finishWorkout}
+            sessionMeta={sessionMeta}
+            setSessionMeta={setSessionMeta}
+          />
+        )}
+
+        {isCoach && activeTab === 'plans' && (
+          <PlanManager 
+            clientName={currentClientObj?.name} 
+            plan={plans[selectedClient]} 
+            muscleGroups={MUSCLE_GROUPS} 
+            customPlanEx={customPlanEx} 
+            setCustomPlanEx={setCustomPlanEx} 
+            handleAddCustomExerciseToPlan={handleAddCustomExerciseToPlan} 
+            handleRemovePlanItem={handleRemovePlanItem} 
+            handleUpdatePlanItem={handleUpdatePlanItem}
+          />
+        )}
+
+        {isCoach && activeTab === 'feedback' && (
+          <CoachFeedback 
+            clientName={currentClientObj?.name} 
+            clientLogs={workoutLogs[selectedClient]} 
+          />
+        )}
+      </main>
+    </div>
+  );
+}
