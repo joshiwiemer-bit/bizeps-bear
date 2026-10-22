@@ -24,8 +24,45 @@ const INITIAL_CLIENTS = [
 ];
 
 const INITIAL_PLANS = {
-  coach: [{ id: 'p_c1', name: 'Bankdrücken', muscles: ['Brust', 'Schultern', 'Arme'], targetSets: 3, targetReps: '6-8', rir: '2', note: 'Sauberer Stopp' }],
-  cassian: [{ id: 'p_cas1', name: 'Kniebeuge', muscles: ['Beine', 'Bauch'], targetSets: 3, targetReps: '8-10', rir: '1', note: 'Tiefe halten' }]
+  coach: [
+    // Montag (Push)
+    { id: 'p_mo_1', name: 'Schrägbank', muscles: ['Brust', 'Schultern', 'Arme'], targetSets: 2, targetReps: '5', rir: '2', note: 'Montag - Push' },
+    { id: 'p_mo_2', name: 'Seitheben', muscles: ['Schultern'], targetSets: 3, targetReps: '10', rir: '2', note: 'Montag - Push' },
+    { id: 'p_mo_3', name: 'Trizeps extension', muscles: ['Arme'], targetSets: 2, targetReps: '12', rir: '2', note: 'Montag - Push' },
+    { id: 'p_mo_4', name: 'Flys', muscles: ['Brust'], targetSets: 2, targetReps: '10', rir: '2', note: 'Montag - Push' },
+    { id: 'p_mo_5', name: 'Trizeps overhead', muscles: ['Arme'], targetSets: 2, targetReps: '12', rir: '2', note: 'Montag - Push' },
+
+    // Dienstag (Pull)
+    { id: 'p_di_1', name: 'Klimmzug', muscles: ['Rücken', 'Arme'], targetSets: 2, targetReps: '5', rir: '2', note: 'Dienstag - Pull' },
+    { id: 'p_di_2', name: 'JoshiCurls', muscles: ['Arme'], targetSets: 2, targetReps: '10', rir: '2', note: 'Dienstag - Pull' },
+    { id: 'p_di_3', name: 'Rudern Eng', muscles: ['Rücken'], targetSets: 2, targetReps: '10', rir: '2', note: 'Dienstag - Pull' },
+    { id: 'p_di_4', name: 'Reverseflys', muscles: ['Schultern'], targetSets: 3, targetReps: '12', rir: '2', note: 'Dienstag - Pull' },
+    { id: 'p_di_5', name: 'Hammercurls Kabel', muscles: ['Arme'], targetSets: 2, targetReps: '12', rir: '2', note: 'Dienstag - Pull' },
+
+    // Mittwoch (Beine / Core)
+    { id: 'p_mi_1', name: 'Pendulum / Hackenschmidt / Zercher', muscles: ['Beine'], targetSets: 3, targetReps: '10', rir: '2', note: 'Mittwoch - Beine/Core' },
+    { id: 'p_mi_2', name: 'RDL / Hipthrust', muscles: ['Beine', 'Rücken'], targetSets: 3, targetReps: '10', rir: '2', note: 'Mittwoch - Beine/Core' },
+    { id: 'p_mi_3', name: 'Cable Crunch', muscles: ['Bauch'], targetSets: 3, targetReps: '12', rir: '2', note: 'Mittwoch - Beine/Core' },
+    { id: 'p_mi_4', name: 'Russian Twist', muscles: ['Bauch'], targetSets: 3, targetReps: '12', rir: '2', note: 'Mittwoch - Beine/Core' },
+
+    // Donnerstag (Push 2)
+    { id: 'p_do_1', name: 'Benchpress', muscles: ['Brust', 'Schultern', 'Arme'], targetSets: 2, targetReps: '8', rir: '2', note: 'Donnerstag - Push' },
+    { id: 'p_do_2', name: 'Überkopf drücken', muscles: ['Schultern', 'Arme'], targetSets: 2, targetReps: '8', rir: '2', note: 'Donnerstag - Push' },
+    { id: 'p_do_3', name: 'Trizeps Extension EA', muscles: ['Arme'], targetSets: 2, targetReps: '12', rir: '2', note: 'Donnerstag - Push' },
+    { id: 'p_do_4', name: 'Seitheben', muscles: ['Schultern'], targetSets: 2, targetReps: '12', rir: '2', note: 'Donnerstag - Push' },
+    { id: 'p_do_5', name: 'Flys', muscles: ['Brust'], targetSets: 2, targetReps: '12', rir: '2', note: 'Donnerstag - Push' },
+    { id: 'p_do_6', name: 'Trizeps Overhead', muscles: ['Arme'], targetSets: 2, targetReps: '12', rir: '2', note: 'Donnerstag - Push' },
+
+    // Freitag (Pull 2)
+    { id: 'p_fr_1', name: 'Klimmzug', muscles: ['Rücken', 'Arme'], targetSets: 2, targetReps: '5', rir: '2', note: 'Freitag - Pull' },
+    { id: 'p_fr_2', name: 'Hammer Curls', muscles: ['Arme'], targetSets: 2, targetReps: '8', rir: '2', note: 'Freitag - Pull' },
+    { id: 'p_fr_3', name: 'Langhantelrudern', muscles: ['Rücken'], targetSets: 2, targetReps: '8', rir: '2', note: 'Freitag - Pull' },
+    { id: 'p_fr_4', name: 'Reversefly', muscles: ['Schultern'], targetSets: 3, targetReps: '12', rir: '2', note: 'Freitag - Pull' },
+    { id: 'p_fr_5', name: 'Dragcurl', muscles: ['Arme'], targetSets: 2, targetReps: '12', rir: '2', note: 'Freitag - Pull' }
+  ],
+  cassian: [
+    { id: 'p_cas1', name: 'Kniebeuge', muscles: ['Beine', 'Bauch'], targetSets: 3, targetReps: '8-10', rir: '1', note: 'Tiefe halten' }
+  ]
 };
 
 const MUSCLE_GROUPS = [
@@ -113,7 +150,7 @@ const db = getFirestore(app);
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
     try {
-      const saved = localStorage.getItem('bb_v19_session');
+      const saved = localStorage.getItem('bb_v20_session');
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
@@ -192,7 +229,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v19_session', JSON.stringify(session));
+      localStorage.setItem('bb_v20_session', JSON.stringify(session));
       return;
     }
 
@@ -201,7 +238,7 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v19_session', JSON.stringify(session));
+      localStorage.setItem('bb_v20_session', JSON.stringify(session));
       return;
     }
 
@@ -209,7 +246,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v19_session');
+    localStorage.removeItem('bb_v20_session');
     setAuthSession(null);
     setPinInput('');
   };
