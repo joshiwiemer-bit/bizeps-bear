@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
-import { Dumbbell, Users, Calendar, Award } from 'lucide-react';
+import { Dumbbell, Users, Calendar, Award, HeartPulse } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
 import WorkoutLogger from './components/WorkoutLogger';
 import RankOverview from './components/RankOverview';
 import PlanManager from './components/PlanManager';
+import CoachFeedback from './components/CoachFeedback';
 
 const INITIAL_CLIENTS = [
   { id: 'coach', name: 'Coach', role: 'Coach', pin: '9999' },
@@ -112,7 +113,7 @@ const db = getFirestore(app);
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
     try {
-      const saved = localStorage.getItem('bb_v16_session');
+      const saved = localStorage.getItem('bb_v17_session');
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
@@ -191,7 +192,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v16_session', JSON.stringify(session));
+      localStorage.setItem('bb_v17_session', JSON.stringify(session));
       return;
     }
 
@@ -200,7 +201,7 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v16_session', JSON.stringify(session));
+      localStorage.setItem('bb_v17_session', JSON.stringify(session));
       return;
     }
 
@@ -208,7 +209,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v16_session');
+    localStorage.removeItem('bb_v17_session');
     setAuthSession(null);
     setPinInput('');
   };
@@ -331,6 +332,7 @@ export default function App() {
         { id: 'workout', label: 'Workout-Logger', icon: Dumbbell },
         { id: 'plans', label: 'Plan verwalten', icon: Calendar },
         { id: 'ranks', label: 'Muskel-Ranks (1-100)', icon: Award },
+        { id: 'feedback', label: 'Check-Up & Feedback', icon: HeartPulse },
       ]
     : [
         { id: 'workout', label: 'Mein Training', icon: Dumbbell },
@@ -377,7 +379,7 @@ export default function App() {
 
         <div className="max-w-7xl mx-auto mt-3 flex gap-2 overflow-x-auto pb-1">
           {visibleTabs.map(tab => {
-            const Icon = tab.icon;
+            TheIcon = tab.icon;
             return (
               <button
                 key={tab.id}
@@ -386,7 +388,7 @@ export default function App() {
                   activeTab === tab.id ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400'
                 }`}
               >
-                <Icon className="w-4 h-4" /> {tab.label}
+                <TheIcon className="w-4 h-4" /> {tab.label}
               </button>
             );
           })}
@@ -425,6 +427,13 @@ export default function App() {
             handleAddCustomExerciseToPlan={handleAddCustomExerciseToPlan} 
             handleRemovePlanItem={handleRemovePlanItem} 
             handleUpdatePlanItem={handleUpdatePlanItem}
+          />
+        )}
+
+        {isCoach && activeTab === 'feedback' && (
+          <CoachFeedback 
+            clientName={currentClientObj?.name} 
+            clientLogs={workoutLogs[selectedClient]} 
           />
         )}
       </main>
