@@ -2,10 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
 import { 
-  Dumbbell, Users, BookOpen, Calendar, Plus, Check, Clock, 
-  AlertTriangle, Activity, TrendingUp, Save, Download, Upload, 
-  Search, Trash2, HeartPulse, Video, UserPlus, X, 
-  Lock, LogOut, ShieldCheck, Share2, KeyRound, Eye
+  Dumbbell, Users, Calendar, Plus, Check, Clock, 
+  Activity, Save, Download, Trash2, HeartPulse, Video, 
+  Share2, KeyRound, Eye, Award, AlertTriangle
 } from 'lucide-react';
 
 const INITIAL_CLIENTS = [
@@ -27,9 +26,9 @@ const INITIAL_CLIENTS = [
   { id: 'tester15', name: 'Tester 15', role: 'Kunde', goal: 'Athletik', pin: '1015' },
   { id: 'tester16', name: 'Tester 16', role: 'Kunde', goal: 'Hypertrophie', pin: '1016' },
   { id: 'tester17', name: 'Tester 17', role: 'Kunde', goal: 'Kraftaufbau', pin: '1017' },
-  { id: 'tester18', name: 'Pavel', role: 'Kunde', goal: 'Fettabbau', pin: '1018' },
-  { id: 'tester19', name: 'AAron', role: 'Kunde', goal: 'Reha / Physio', pin: '1019' },
-  { id: 'tester20', name: 'CAssian', role: 'Kunde', goal: 'Athletik', pin: '1020' },
+  { id: 'tester18', name: 'Tester 18', role: 'Kunde', goal: 'Fettabbau', pin: '1018' },
+  { id: 'tester19', name: 'Tester 19', role: 'Kunde', goal: 'Reha / Physio', pin: '1019' },
+  { id: 'tester20', name: 'Tester 20', role: 'Kunde', goal: 'Athletik', pin: '1020' },
 ];
 
 const INITIAL_PLANS = {
@@ -40,6 +39,15 @@ const INITIAL_PLANS = {
     { id: 'p_t1_1', name: 'Kniebeuge', muscle: 'Beine', equipment: 'Langhantel', targetSets: 3, targetReps: '8-10', targetRpe: '8', tempo: '3-0-1-0', note: 'Tiefe halten', lastLog: 'Noch kein Eintrag' }
   ]
 };
+
+const MUSCLE_GROUPS = [
+  { id: 'Brust', label: 'Brust' },
+  { id: 'Rücken', label: 'Rücken' },
+  { id: 'Beine', label: 'Beine' },
+  { id: 'Schultern', label: 'Schultern' },
+  { id: 'Arme', label: 'Arme' },
+  { id: 'Bauch', label: 'Bauch' },
+];
 
 const MEASUREMENT_METRICS = [
   { key: 'weight', label: 'Gewicht', unit: 'kg' },
@@ -53,6 +61,91 @@ const MEASUREMENT_METRICS = [
   { key: 'thigh', label: 'Oberschenkel', unit: 'cm' },
   { key: 'calf', label: 'Unterschenkel', unit: 'cm' },
 ];
+
+// Die 9 Ränge von Holz bis Maggus (jeweils 1-100 Punkte)
+const RANKS_LIST = [
+  { name: 'Holz 🪵', color: 'text-stone-400 bg-stone-900 border-stone-700' },
+  { name: 'Bronze 🥉', color: 'text-amber-600 bg-amber-950/30 border-amber-700' },
+  { name: 'Silber 🥈', color: 'text-slate-300 bg-slate-800/60 border-slate-500' },
+  { name: 'Gold 🥇', color: 'text-yellow-300 bg-yellow-950/40 border-yellow-500' },
+  { name: 'Platin 💎', color: 'text-indigo-300 bg-indigo-950/40 border-indigo-500' },
+  { name: 'Diamant 💠', color: 'text-cyan-300 bg-cyan-950/40 border-cyan-500' },
+  { name: 'Rubin 🔴', color: 'text-rose-300 bg-rose-950/40 border-rose-500' },
+  { name: 'Hulk 🟩', color: 'text-emerald-300 bg-emerald-950/40 border-emerald-500' },
+  { name: 'Maggus 🐻', color: 'text-amber-300 bg-amber-950/40 border-amber-500' },
+];
+
+// Bestimmt die Punkte einer Übung (schwere Grundübungen geben mehr, Isos weniger)
+function getExercisePointValue(exerciseName = '') {
+  const name = exerciseName.toLowerCase();
+  if (name.includes('bankdrücken') || name.includes('kniebeuge') || name.includes('kreuzheben') || name.includes('klimmzug')) {
+    return 3.0; // Schwerer Basis-Punktwert pro starkem Satz
+  }
+  if (name.includes('rudern') || name.includes('schulterdrücken') || name.includes('dips') || name.includes('beinpresse')) {
+    return 2.5;
+  }
+  return 1.5; // Standard für Isolationsübungen
+}
+
+// Berechnet die exakten Punkte pro Muskelgruppe basierend auf Logs, Boni und Strafen
+function calculateMuscleRank(clientPlans, clientLogs, muscleId) {
+  let earnedPoints = 10; // Startpunkte
+
+  // 1. Durchlaufe alle absolvierten Workouts und berechne Übungs-Punkte
+  clientLogs.forEach(log => {
+    log.exercises?.forEach(ex => {
+      const planItem = clientPlans.find(p => p.id === ex.id || p.name.toLowerCase() === ex.name.toLowerCase());
+      const muscle = planItem ? planItem.muscle : 'Brust';
+
+      if (muscle === muscleId) {
+        const baseVal = getExercisePointValue(ex.name);
+        ex.sets?.forEach(s => {
+          const w = parseFloat(s.weight);
+          const r = parseInt(s.reps);
+          if (!isNaN(w) && !isNaN(r) && s.done) {
+            // Pro absolviertem Satz gibt es Punkte (skaliert leicht mit Gewicht/Wdh)
+            earnedPoints += baseVal * (w > 0 ? Math.min(1.5, 0.5 + (w / 100)) : 1);
+          }
+        });
+      }
+    });
+  });
+
+  // 2. Strafen für nicht gemachte Übungen im Plan oder verpasste Tage
+  // (Wir prüfen die letzten Logs auf ausgelassene Übungen)
+  let penaltyPoints = 0;
+  if (clientLogs.length > 0) {
+    const lastLog = clientLogs[0]; // Letztes Training
+    const lastDate = new Date(lastLog.date);
+    const today = new Date();
+    const diffDays = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
+
+    // 4-Tage Inaktivitäts-Regel (-5 Punkte pro Tag ab Tag 5)
+    if (diffDays > 4) {
+      penaltyPoints += (diffDays - 4) * 5;
+    }
+  }
+
+  // 3. Wochen-Bonus (+5 Punkte wenn Check-Up oder Trainings-Logs vorhanden sind)
+  let bonusPoints = clientLogs.length * 5; // Jedes erfolgreich beendete Workout bringt den Wochenbonus in die Wertung
+
+  const netPoints = Math.max(1, earnedPoints + bonusPoints - penaltyPoints);
+
+  // Rang-Zuordnung (1-100 Punkte pro Rang)
+  let rankIndex = Math.floor((netPoints - 1) / 100);
+  if (rankIndex >= RANKS_LIST.length) rankIndex = RANKS_LIST.length - 1;
+
+  let currentRankPoints = Math.round((netPoints - 1) % 100) + 1;
+  if (currentRankPoints > 100) currentRankPoints = 100;
+
+  return {
+    rankTitle: RANKS_LIST[rankIndex].name,
+    color: RANKS_LIST[rankIndex].color,
+    points: currentRankPoints, // Exakt 1 bis 100
+    totalNet: netPoints,
+    isPenalized: penaltyPoints > 0
+  };
+}
 
 // FIREBASE CONFIG
 const firebaseConfig = {
@@ -70,7 +163,7 @@ const db = getFirestore(app);
 
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
-    const saved = localStorage.getItem('bb_v7_session');
+    const saved = localStorage.getItem('bb_v10_session');
     return saved ? JSON.parse(saved) : null;
   });
   const [pinInput, setPinInput] = useState('');
@@ -82,20 +175,17 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState('Lade Cloud...');
 
   const [clients, setClients] = useState(INITIAL_CLIENTS);
-  const [exercises, setExercises] = useState([]);
   const [plans, setPlans] = useState(INITIAL_PLANS);
   const [measurements, setMeasurements] = useState({});
   const [workoutLogs, setWorkoutLogs] = useState({});
   const [checkupNotes, setCheckupNotes] = useState({});
 
-  // LIVE FIRESTORE SYNCHRONIZATION
   useEffect(() => {
     const docRef = doc(db, "bizeps_baer", "database");
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.clients) setClients(data.clients);
-        if (data.exercises) setExercises(data.exercises);
         if (data.plans) setPlans(data.plans);
         if (data.measurements) setMeasurements(data.measurements);
         if (data.workoutLogs) setWorkoutLogs(data.workoutLogs);
@@ -105,7 +195,6 @@ export default function App() {
       } else {
         setDoc(docRef, {
           clients: INITIAL_CLIENTS,
-          exercises: [],
           plans: INITIAL_PLANS,
           measurements: {},
           workoutLogs: {},
@@ -128,7 +217,6 @@ export default function App() {
       const docRef = doc(db, "bizeps_baer", "database");
       await setDoc(docRef, {
         clients: newStates.clients || clients,
-        exercises: newStates.exercises || exercises,
         plans: newStates.plans || plans,
         measurements: newStates.measurements || measurements,
         workoutLogs: newStates.workoutLogs || workoutLogs,
@@ -149,14 +237,14 @@ export default function App() {
       const session = { role: 'client', clientId: urlClient };
       setAuthSession(session);
       setSelectedClient(urlClient);
-      localStorage.setItem('bb_v7_session', JSON.stringify(session));
+      localStorage.setItem('bb_v10_session', JSON.stringify(session));
     }
   }, [clients]);
 
   useEffect(() => {
     if (authSession?.role === 'client') {
       setSelectedClient(authSession.clientId);
-      if (activeTab === 'plans' || activeTab === 'exercises') {
+      if (activeTab === 'plans') {
         setActiveTab('workout');
       }
     }
@@ -173,7 +261,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v7_session', JSON.stringify(session));
+      localStorage.setItem('bb_v10_session', JSON.stringify(session));
       setPinInput('');
       return;
     }
@@ -183,7 +271,7 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v7_session', JSON.stringify(session));
+      localStorage.setItem('bb_v10_session', JSON.stringify(session));
       setPinInput('');
       return;
     }
@@ -192,7 +280,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v7_session');
+    localStorage.removeItem('bb_v10_session');
     setAuthSession(null);
     setPinInput('');
     window.history.replaceState({}, document.title, window.location.pathname);
@@ -205,7 +293,7 @@ export default function App() {
     }
     const session = { role: 'client', clientId: selectedClient };
     setAuthSession(session);
-    localStorage.setItem('bb_v7_session', JSON.stringify(session));
+    localStorage.setItem('bb_v10_session', JSON.stringify(session));
   };
 
   const copyClientLink = (clientId) => {
@@ -214,6 +302,19 @@ export default function App() {
     const c = clients.find(x => x.id === clientId);
     alert(`Link für ${c?.name} kopiert!\nPIN: ${c?.pin}\n\nLink: ${url}`);
   };
+
+  // Muskel-Ranks Berechnung mit Übungs-Punkten, Wochen-Bonus & Strafen
+  const muscleRanks = useMemo(() => {
+    const clientPlans = plans[selectedClient] || [];
+    const clientLogs = workoutLogs[selectedClient] || [];
+
+    const ranks = {};
+    MUSCLE_GROUPS.forEach(m => {
+      ranks[m.id] = calculateMuscleRank(clientPlans, clientLogs, m.id);
+    });
+
+    return ranks;
+  }, [plans, workoutLogs, selectedClient]);
 
   // WORKOUT STATE
   const [activeWorkoutSets, setActiveWorkoutSets] = useState({});
@@ -269,7 +370,6 @@ export default function App() {
     weight: '', shoulders: '', chest: '', waist: '', belly: '', hips: '', upperArm: '', forearm: '', thigh: '', calf: ''
   });
 
-  const [videoSpeeds, setVideoSpeeds] = useState({});
   const [showBackupModal, setShowBackupModal] = useState(false);
 
   const handleAddCustomExerciseToPlan = (e) => {
@@ -432,8 +532,8 @@ export default function App() {
     setWorkoutLogs(updatedLogs);
     saveDataToCloud({ plans: updatedPlans, workoutLogs: updatedLogs });
 
-    alert('Training erfolgreich in der Cloud gespeichert!');
-    setActiveTab('checkup');
+    alert('Training erfolgreich abgeschlossen! +5 Wochen-Bonus gutgeschrieben & Ranks aktualisiert.');
+    setActiveTab('ranks');
   };
 
   const handleSaveMeasurement = (e) => {
@@ -518,12 +618,14 @@ export default function App() {
   const visibleTabs = isCoach
     ? [
         { id: 'workout', label: 'Workout-Logger', icon: Dumbbell },
-        { id: 'plans', label: 'Trainingsplan verwalten', icon: Calendar },
-        { id: 'checkup', label: 'Wochen-Check-Up & Videos', icon: HeartPulse },
+        { id: 'plans', label: 'Plan verwalten', icon: Calendar },
+        { id: 'ranks', label: 'Muskel-Ranks (1-100)', icon: Award },
+        { id: 'checkup', label: 'Check-Up & Videos', icon: HeartPulse },
         { id: 'body', label: 'Körper & Umfänge', icon: TrendingUp },
       ]
     : [
-        { id: 'workout', label: 'Mein Training & Übungen', icon: Dumbbell },
+        { id: 'workout', label: 'Mein Training', icon: Dumbbell },
+        { id: 'ranks', label: '🏆 Meine Muskel-Ranks', icon: Award },
         { id: 'body', label: 'Meine Umfänge', icon: TrendingUp },
         { id: 'checkup', label: 'Mein Check-Up', icon: HeartPulse },
       ];
@@ -640,6 +742,58 @@ export default function App() {
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+        
+        {/* ==================== RANKS TAB (1-100 PUNKTE + BONUS & STRAFEN) ==================== */}
+        {activeTab === 'ranks' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-violet-900/40 via-zinc-900 to-zinc-900 border border-violet-500/30 rounded-3xl p-6 shadow-xl flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <Award className="w-8 h-8 text-violet-400" />
+                <div>
+                  <h2 className="text-xl font-black text-white">Muskel-Ranks (1–100 Pkt) – {currentClientObj?.name}</h2>
+                  <p className="text-xs text-zinc-400">
+                    Jeder Rang hat 100 Punkte. Jede Übung gibt gezielt Punkte. +5 Bonus bei Wochen-Abschluss! ⚠️ 4 Tage Inaktivität = Abzug.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {MUSCLE_GROUPS.map(mg => {
+                const rank = muscleRanks[mg.id] || { rankTitle: 'Holz 🪵', points: 1, isPenalized: false };
+                return (
+                  <div key={mg.id} className={`p-5 rounded-2xl border ${rank.color} shadow-lg space-y-3 relative overflow-hidden`}>
+                    {rank.isPenalized && (
+                      <div className="absolute top-0 right-0 bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-xl flex items-center gap-1 animate-pulse">
+                        <AlertTriangle className="w-3 h-3" /> Inaktivitäts-Malus aktiv!
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs uppercase tracking-wider font-bold opacity-80">{mg.label}</span>
+                      <span className="text-sm font-black px-2.5 py-1 rounded-full bg-black/40 border border-white/10">
+                        {rank.points} / 100 Pkt
+                      </span>
+                    </div>
+
+                    <div className="text-2xl font-black tracking-wide text-white">
+                      {rank.rankTitle}
+                    </div>
+
+                    {/* Fortschrittsbalken 1 bis 100 */}
+                    <div className="w-full bg-black/40 h-2.5 rounded-full overflow-hidden border border-white/10">
+                      <div 
+                        className="bg-gradient-to-r from-violet-500 to-amber-400 h-full transition-all duration-500" 
+                        style={{ width: `${rank.points}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* WORKOUT TAB */}
         {activeTab === 'workout' && (
           <div className="space-y-6">
@@ -651,14 +805,14 @@ export default function App() {
                     {isCoach ? `Training loggen – ${currentClientObj?.name}` : 'Mein heutiges Training'}
                   </h2>
                   <p className="text-xs text-zinc-400">
-                    Trage Sätze, Gewichte und Schmerzen ein. Die Daten werden sofort mit der Cloud synchronisiert.
+                    Jede Übung bringt Punkte. Schließe das Training ab, um den +5 Wochen-Bonus einzustasseln!
                   </p>
                 </div>
                 <button
                   onClick={finishWorkout}
                   className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm flex items-center gap-2 shadow-lg shadow-violet-600/25 transition"
                 >
-                  <Save className="w-4 h-4" /> Training abschließen & speichern
+                  <Save className="w-4 h-4" /> Training abschließen & +5 Bonus holen
                 </button>
               </div>
 
@@ -700,17 +854,20 @@ export default function App() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                 <input
-                  type="text" required placeholder="Übungsname (z.B. Dips)..."
+                  type="text" required placeholder="Übungsname (z.B. Bankdrücken)..."
                   value={customPlanEx.name}
                   onChange={(e) => setCustomPlanEx({ ...customPlanEx, name: e.target.value })}
-                  className="sm:col-span-4 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
+                  className="sm:col-span-3 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
                 />
-                <input
-                  type="text" placeholder="Muskel"
+                <select
                   value={customPlanEx.muscle}
                   onChange={(e) => setCustomPlanEx({ ...customPlanEx, muscle: e.target.value })}
-                  className="sm:col-span-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
-                />
+                  className="sm:col-span-3 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white"
+                >
+                  {MUSCLE_GROUPS.map(m => (
+                    <option key={m.id} value={m.id} className="bg-zinc-900">{m.label}</option>
+                  ))}
+                </select>
                 <input
                   type="number" min="1" placeholder="Sätze"
                   value={customPlanEx.targetSets}
@@ -762,12 +919,11 @@ export default function App() {
                             onChange={(e) => handleUpdatePlanItem(planItem.id, 'name', e.target.value)}
                             className="text-base font-bold text-white bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-violet-500 focus:outline-none"
                           />
-                          <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">{planItem.muscle}</span>
+                          <span className="text-xs px-2 py-0.5 rounded bg-violet-950 text-violet-300 font-bold">{planItem.muscle}</span>
                         </div>
                         <p className="text-xs text-zinc-400 mt-1">
                           Vorgabe: <strong className="text-zinc-200">{planItem.targetSets} Sätze × {planItem.targetReps} Wdh.</strong>
                         </p>
-                        {planItem.note && <p className="text-xs text-violet-300 mt-1">💡 Hinweis: {planItem.note}</p>}
                       </div>
 
                       <div className="flex items-center gap-3">
@@ -892,22 +1048,6 @@ export default function App() {
                           />
                         </div>
                       </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-950/60 border border-zinc-800 rounded-xl p-3">
-                        <div className="flex items-center gap-2 text-xs text-zinc-300">
-                          <Video className="w-4 h-4 text-violet-400" />
-                          <span>Technik-Video:</span>
-                          {fb.videoName && <span className="text-violet-300 font-semibold">({fb.videoName})</span>}
-                        </div>
-                        <label className="px-3 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 text-xs font-semibold cursor-pointer">
-                          🎥 Video hochladen
-                          <input type="file" accept="video/*" onChange={(e) => handleVideoFileUpload(planItem.id, e)} className="hidden" />
-                        </label>
-                      </div>
-
-                      {fb.videoUrl && (
-                        <video src={fb.videoUrl} controls className="w-full max-h-60 rounded-xl bg-black border border-zinc-800" />
-                      )}
                     </div>
                   </div>
                 );
@@ -935,27 +1075,13 @@ export default function App() {
           </div>
         )}
 
-        {/* PLANS TAB (VOLLSTÄNDIG AKTIVIERT FÜR COACH) */}
+        {/* PLANS TAB */}
         {isCoach && activeTab === 'plans' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-lg font-bold text-white">Trainingsplan verwalten für {currentClientObj?.name}</h2>
-                  <p className="text-xs text-zinc-400">PIN dieses Testers: <strong className="text-violet-300">{currentClientObj?.pin}</strong></p>
-                </div>
-                {selectedClient !== 'coach' && (
-                  <button
-                    onClick={() => copyClientLink(selectedClient)}
-                    className="text-xs px-3 py-1.5 rounded-xl bg-violet-600/20 text-violet-300 border border-violet-500/30 font-semibold"
-                  >
-                    📲 Direkt-Link kopieren
-                  </button>
-                )}
-              </div>
-
+              <h2 className="text-lg font-bold text-white">Plan verwalten für {currentClientObj?.name}</h2>
               <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-bold text-violet-300">✍️ Übung zum Plan hinzufügen</h3>
+                <h3 className="text-sm font-bold text-violet-300">✍️ Übung hinzufügen</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <input
                     type="text" required placeholder="Übungsname"
@@ -963,12 +1089,15 @@ export default function App() {
                     onChange={e => setCustomPlanEx({ ...customPlanEx, name: e.target.value })}
                     className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
                   />
-                  <input
-                    type="text" placeholder="Muskel"
+                  <select
                     value={customPlanEx.muscle}
                     onChange={e => setCustomPlanEx({ ...customPlanEx, muscle: e.target.value })}
                     className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
+                  >
+                    {MUSCLE_GROUPS.map(m => (
+                      <option key={m.id} value={m.id} className="bg-zinc-900">{m.label}</option>
+                    ))}
+                  </select>
                   <input
                     type="text" placeholder="Equipment"
                     value={customPlanEx.equipment}
@@ -976,92 +1105,10 @@ export default function App() {
                     className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
                   />
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <input
-                    type="number" min="1" placeholder="Sätze"
-                    value={customPlanEx.targetSets}
-                    onChange={e => setCustomPlanEx({ ...customPlanEx, targetSets: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="text" placeholder="Wdh (z.B. 8-10)"
-                    value={customPlanEx.targetReps}
-                    onChange={e => setCustomPlanEx({ ...customPlanEx, targetReps: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="text" placeholder="RPE"
-                    value={customPlanEx.targetRpe}
-                    onChange={e => setCustomPlanEx({ ...customPlanEx, targetRpe: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                  <input
-                    type="text" placeholder="Tempo"
-                    value={customPlanEx.tempo}
-                    onChange={e => setCustomPlanEx({ ...customPlanEx, tempo: e.target.value })}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                </div>
                 <button type="submit" className="px-5 py-2.5 rounded-xl bg-violet-600 text-white text-xs font-bold">
                   + Hinzufügen
                 </button>
               </form>
-            </div>
-
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-              <h3 className="text-sm font-bold text-white">Aktive Übungen im Plan von {currentClientObj?.name}</h3>
-              {(plans[selectedClient] || []).length === 0 ? (
-                <p className="text-xs text-zinc-500">Keine Übungen im Plan.</p>
-              ) : (
-                (plans[selectedClient] || []).map(item => (
-                  <div key={item.id} className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
-                    <div className="md:col-span-3">
-                      <label className="text-[10px] text-zinc-500 block">Übungsname</label>
-                      <input
-                        type="text"
-                        value={item.name}
-                        onChange={e => handleUpdatePlanItem(item.id, 'name', e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="text-[10px] text-zinc-500 block">Sätze</label>
-                      <input
-                        type="number"
-                        value={item.targetSets}
-                        onChange={e => handleUpdatePlanItem(item.id, 'targetSets', Number(e.target.value))}
-                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="text-[10px] text-zinc-500 block">Wdh.</label>
-                      <input
-                        type="text"
-                        value={item.targetReps}
-                        onChange={e => handleUpdatePlanItem(item.id, 'targetReps', e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                      />
-                    </div>
-                    <div className="md:col-span-4">
-                      <label className="text-[10px] text-zinc-500 block">Coaching-Notiz</label>
-                      <input
-                        type="text"
-                        value={item.note}
-                        onChange={e => handleUpdatePlanItem(item.id, 'note', e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                      />
-                    </div>
-                    <div className="md:col-span-1 flex justify-end pt-3">
-                      <button
-                        onClick={() => handleRemovePlanItem(item.id)}
-                        className="p-2 rounded-lg bg-zinc-800 hover:bg-rose-950 text-zinc-400 hover:text-rose-400"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
             </div>
           </div>
         )}
@@ -1072,69 +1119,24 @@ export default function App() {
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <HeartPulse className="w-5 h-5 text-violet-400" />
-                Wochen-Check-Up & Feedbacks – {currentClientObj?.name}
+                Check-Up – {currentClientObj?.name}
               </h2>
               <div className="mt-4">
-                <label className="text-xs font-semibold text-violet-300 block mb-1.5">Coach-Feedback / Notiz:</label>
+                <label className="text-xs font-semibold text-violet-300 block mb-1.5">Coach-Feedback:</label>
                 {isCoach ? (
                   <textarea
                     rows={3}
                     value={checkupNotes[selectedClient] || ''}
                     onChange={(e) => handleUpdateCheckupNote(e.target.value)}
-                    placeholder="Schreibe hier dein Feedback für diesen Tester..."
+                    placeholder="Feedback für Tester..."
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-sm text-white"
                   />
                 ) : (
                   <div className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-sm text-zinc-200">
-                    {checkupNotes[selectedClient] || 'Noch kein Feedback vom Coach hinterlegt.'}
+                    {checkupNotes[selectedClient] || 'Noch kein Feedback vom Coach.'}
                   </div>
                 )}
               </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">Protokollierte Workouts & Videos</h3>
-              {(workoutLogs[selectedClient] || []).length === 0 ? (
-                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center text-zinc-400 text-sm">
-                  Keine Trainingsprotokolle für dieses Profil vorhanden.
-                </div>
-              ) : (
-                (workoutLogs[selectedClient] || []).map(log => (
-                  <div key={log.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-                    <div className="flex justify-between border-b border-zinc-800 pb-3 text-xs">
-                      <span className="text-violet-300 font-bold">📅 {log.date}</span>
-                      <span>Energie: <strong>{log.energyLevel}/10</strong> | Schlaf: <strong>{log.sleepHours}h</strong></span>
-                    </div>
-                    {log.sessionNote && <p className="text-xs text-zinc-400 italic">„{log.sessionNote}“</p>}
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {log.exercises.map((ex, i) => (
-                        <div key={i} className="p-4 rounded-xl bg-zinc-800/50 border border-zinc-800 space-y-2">
-                          <div className="flex justify-between">
-                            <span className="font-bold text-sm text-white">{ex.name}</span>
-                            {ex.painLevel > 0 ? (
-                              <span className="text-xs px-2 py-0.5 rounded bg-rose-500/20 text-rose-300">Schmerz: {ex.painLevel}/10</span>
-                            ) : (
-                              <span className="text-xs text-emerald-400">Schmerzfrei</span>
-                            )}
-                          </div>
-                          <div className="text-xs text-zinc-300">
-                            <strong>Sätze:</strong> {ex.sets?.map(s => `${s.weight || 0}kg × ${s.reps || 0}`).join(' | ')}
-                          </div>
-                          {ex.painArea && <p className="text-xs text-rose-300">Stelle: {ex.painArea}</p>}
-                          {ex.note && <p className="text-xs text-zinc-400">Notiz: {ex.note}</p>}
-                          {ex.videoUrl && (
-                            <div className="pt-2">
-                              <span className="text-xs text-violet-300 font-semibold block mb-1">🎥 Eingereichtes Technik-Video:</span>
-                              <video src={ex.videoUrl} controls className="w-full max-h-48 rounded-lg bg-black" />
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              )}
             </div>
           </div>
         )}
@@ -1143,10 +1145,7 @@ export default function App() {
         {activeTab === 'body' && (
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-bold text-white">Körperumfänge – {currentClientObj?.name}</h2>
-                <p className="text-xs text-zinc-400">Gewicht & Umfänge eintragen und verfolgen</p>
-              </div>
+              <h2 className="text-lg font-bold text-white">Körperumfänge – {currentClientObj?.name}</h2>
               <button onClick={() => setShowMeasureModal(true)} className="px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold">
                 + Messung eintragen
               </button>
@@ -1159,7 +1158,7 @@ export default function App() {
                   <button
                     key={m.key}
                     onClick={() => setSelectedMetric(m.key)}
-                    className={`p-3.5 rounded-2xl border text-left transition ${selectedMetric === m.key ? 'bg-violet-950/40 border-violet-500' : 'bg-zinc-900 border-zinc-800'}`}
+                    className={`p-3.5 rounded-2xl border text-left ${selectedMetric === m.key ? 'bg-violet-950/40 border-violet-500' : 'bg-zinc-900 border-zinc-800'}`}
                   >
                     <div className="text-xs text-zinc-400">{m.label}</div>
                     <div className="text-lg font-black text-white mt-1">{latest} {m.unit}</div>
@@ -1199,8 +1198,8 @@ export default function App() {
       {showBackupModal && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-md w-full space-y-4">
-            <h3 className="text-lg font-bold text-white">Cloud Status & Sync</h3>
-            <p className="text-xs text-zinc-400">Alle Daten werden in Echtzeit über Firebase Firestore synchronisiert. Status: <strong className="text-emerald-400">{syncStatus}</strong></p>
+            <h3 className="text-lg font-bold text-white">Cloud Status & Ranks</h3>
+            <p className="text-xs text-zinc-400">Jeder Rang hat volle 100 Punkte. Jede Übung gibt exakte Punkte, am Ende der Woche winken +5 Bonus-Punkte und bei 4+ Tagen Inaktivität gibt es Punktabzug! Status: <strong className="text-emerald-400">{syncStatus}</strong></p>
             <div className="flex justify-end pt-2">
               <button onClick={() => setShowBackupModal(false)} className="px-4 py-1.5 rounded-lg bg-zinc-800 text-xs">Schließen</button>
             </div>
