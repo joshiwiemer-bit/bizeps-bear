@@ -75,6 +75,7 @@ const RANKS_LIST = [
 ];
 
 function getExercisePointValue(exerciseName = '') {
+  if (!exerciseName) return 1.5;
   const name = exerciseName.toLowerCase();
   if (name.includes('bankdrücken') || name.includes('kniebeuge') || name.includes('kreuzheben') || name.includes('klimmzug')) {
     return 3.0;
@@ -85,51 +86,54 @@ function getExercisePointValue(exerciseName = '') {
   return 1.5;
 }
 
-function calculateMuscleRank(clientPlans, clientLogs, muscleId) {
+function calculateMuscleRank(clientPlans = [], clientLogs = [], muscleId = '') {
   let earnedPoints = 10;
 
-  clientLogs.forEach(log => {
-    log.exercises?.forEach(ex => {
-      const planItem = clientPlans.find(p => p.id === ex.id || p.name.toLowerCase() === ex.name.toLowerCase());
-      const muscle = planItem ? planItem.muscle : 'Brust';
+  if (Array.isArray(clientLogs)) {
+    clientLogs.forEach(log => {
+      log?.exercises?.forEach(ex => {
+        const planItem = clientPlans.find(p => p.id === ex.id || (p.name && ex.name && p.name.toLowerCase() === ex.name.toLowerCase()));
+        const muscle = planItem ? planItem.muscle : 'Brust';
 
-      if (muscle === muscleId) {
-        const baseVal = getExercisePointValue(ex.name);
-        ex.sets?.forEach(s => {
-          const w = parseFloat(s.weight);
-          const r = parseInt(s.reps);
-          if (!isNaN(w) && !isNaN(r) && s.done) {
-            earnedPoints += baseVal * (w > 0 ? Math.min(1.5, 0.5 + (w / 100)) : 1);
-          }
-        });
-      }
+        if (muscle === muscleId) {
+          const baseVal = getExercisePointValue(ex.name);
+          ex?.sets?.forEach(s => {
+            const w = parseFloat(s?.weight);
+            const r = parseInt(s?.reps);
+            if (!isNaN(w) && !isNaN(r) && s?.done) {
+              earnedPoints += baseVal * (w > 0 ? Math.min(1.5, 0.5 + (w / 100)) : 1);
+            }
+          });
+        }
+      });
     });
-  });
+  }
 
   let penaltyPoints = 0;
-  if (clientLogs.length > 0) {
-    const lastLog = clientLogs[0];
-    const lastDate = new Date(lastLog.date);
-    const today = new Date();
-    const diffDays = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays > 4) {
-      penaltyPoints += (diffDays - 4) * 5;
+  if (Array.isArray(clientLogs) && clientLogs.length > 0 && clientLogs[0]?.date) {
+    const lastDate = new Date(clientLogs[0].date);
+    if (!isNaN(lastDate.getTime())) {
+      const today = new Date();
+      const diffDays = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
+      if (diffDays > 4) {
+        penaltyPoints += (diffDays - 4) * 5;
+      }
     }
   }
 
-  let bonusPoints = clientLogs.length * 5;
+  let bonusPoints = Array.isArray(clientLogs) ? clientLogs.length * 5 : 0;
   const netPoints = Math.max(1, earnedPoints + bonusPoints - penaltyPoints);
 
   let rankIndex = Math.floor((netPoints - 1) / 100);
   if (rankIndex >= RANKS_LIST.length) rankIndex = RANKS_LIST.length - 1;
+  if (rankIndex < 0) rankIndex = 0;
 
   let currentRankPoints = Math.round((netPoints - 1) % 100) + 1;
   if (currentRankPoints > 100) currentRankPoints = 100;
 
   return {
-    rankTitle: RANKS_LIST[rankIndex].name,
-    color: RANKS_LIST[rankIndex].color,
+    rankTitle: RANKS_LIST[rankIndex]?.name || 'Holz 🪵',
+    color: RANKS_LIST[rankIndex]?.color || 'text-stone-400 bg-stone-900 border-stone-700',
     points: currentRankPoints,
     totalNet: netPoints,
     isPenalized: penaltyPoints > 0
@@ -151,8 +155,12 @@ const db = getFirestore(app);
 
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
-    const saved = localStorage.getItem('bb_v10_session');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('bb_v11_session');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
   const [pinInput, setPinInput] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -225,7 +233,7 @@ export default function App() {
       const session = { role: 'client', clientId: urlClient };
       setAuthSession(session);
       setSelectedClient(urlClient);
-      localStorage.setItem('bb_v10_session', JSON.stringify(session));
+      localStorage.setItem('bb_v11_session', JSON.stringify(session));
     }
   }, [clients]);
 
@@ -249,7 +257,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v10_session', JSON.stringify(session));
+      localStorage.setItem('bb_v11_session', JSON.stringify(session));
       setPinInput('');
       return;
     }
@@ -259,7 +267,7 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v10_session', JSON.stringify(session));
+      localStorage.setItem('bb_v11_session', JSON.stringify(session));
       setPinInput('');
       return;
     }
@@ -268,7 +276,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v10_session');
+    localStorage.removeItem('bb_v11_session');
     setAuthSession(null);
     setPinInput('');
     window.history.replaceState({}, document.title, window.location.pathname);
@@ -281,7 +289,7 @@ export default function App() {
     }
     const session = { role: 'client', clientId: selectedClient };
     setAuthSession(session);
-    localStorage.setItem('bb_v10_session', JSON.stringify(session));
+    localStorage.setItem('bb_v11_session', JSON.stringify(session));
   };
 
   const copyClientLink = (clientId) => {
@@ -451,20 +459,6 @@ export default function App() {
     }));
   };
 
-  const handleVideoFileUpload = (planItemId, e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    setExerciseFeedback(prev => ({
-      ...prev,
-      [planItemId]: {
-        ...(prev[planItemId] || {}),
-        videoUrl: url,
-        videoName: file.name
-      }
-    }));
-  };
-
   const finishWorkout = () => {
     const currentPlan = plans[selectedClient] || [];
     if (currentPlan.length === 0) {
@@ -481,8 +475,6 @@ export default function App() {
         painLevel: Number(fb.painLevel || 0),
         painArea: fb.painArea || '',
         note: fb.note || '',
-        videoUrl: fb.videoUrl || '',
-        videoName: fb.videoName || '',
         sets
       };
     });
@@ -547,7 +539,6 @@ export default function App() {
     return chartRange === 'month' ? list.slice(-4) : list;
   }, [measurements, selectedClient, chartRange]);
 
-  const currentMetricObj = MEASUREMENT_METRICS.find(m => m.key === selectedMetric) || MEASUREMENT_METRICS[0];
   const currentClientObj = clients.find(c => c.id === selectedClient) || clients[0];
 
   if (!authSession) {
@@ -885,7 +876,6 @@ export default function App() {
             ) : (
               (plans[selectedClient] || []).map((planItem, idx) => {
                 const sets = activeWorkoutSets[planItem.id] || [];
-                const fb = exerciseFeedback[planItem.id] || { painLevel: 0, painArea: '', note: '', videoUrl: '', videoName: '' };
 
                 return (
                   <div key={planItem.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
@@ -993,43 +983,6 @@ export default function App() {
                       >
                         <Plus className="w-3.5 h-3.5" /> Satz hinzufügen
                       </button>
-                    </div>
-
-                    <div className="pt-3 border-t border-zinc-800/80 space-y-3">
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                        <div className="md:col-span-3">
-                          <label className="text-xs text-zinc-400 flex items-center justify-between mb-1">
-                            <span>Schmerz (0–10):</span>
-                            <span className={`font-bold ${fb.painLevel >= 4 ? 'text-rose-400' : 'text-violet-400'}`}>
-                              {fb.painLevel}/10
-                            </span>
-                          </label>
-                          <input
-                            type="range" min="0" max="10"
-                            value={fb.painLevel}
-                            onChange={(e) => updateExerciseFeedback(planItem.id, 'painLevel', Number(e.target.value))}
-                            className="w-full accent-violet-500 cursor-pointer"
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <label className="text-xs text-zinc-400 block mb-1">Betroffene Stelle</label>
-                          <input
-                            type="text" placeholder="z.B. Knie..."
-                            value={fb.painArea}
-                            onChange={(e) => updateExerciseFeedback(planItem.id, 'painArea', e.target.value)}
-                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                        <div className="md:col-span-5">
-                          <label className="text-xs text-zinc-400 block mb-1">Notiz</label>
-                          <input
-                            type="text" placeholder="Feedback..."
-                            value={fb.note}
-                            onChange={(e) => updateExerciseFeedback(planItem.id, 'note', e.target.value)}
-                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                      </div>
                     </div>
                   </div>
                 );
