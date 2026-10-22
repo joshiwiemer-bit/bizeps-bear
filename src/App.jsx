@@ -8,20 +8,25 @@ import {
 } from 'lucide-react';
 
 const INITIAL_CLIENTS = [
-  { id: 'coach', name: 'Ich (Coach / Eigenes Training)', role: 'Coach', goal: 'Eigenes Training', pin: '9999' },
-  { id: 'tester1', name: 'Tester 1', role: 'Kunde', goal: 'Hypertrophie', pin: '1001' },
-  { id: 'tester2', name: 'Tester 2', role: 'Kunde', goal: 'Kraftaufbau', pin: '1002' },
-  { id: 'tester3', name: 'Tester 3', role: 'Kunde', goal: 'Fettabbau', pin: '1003' },
-  { id: 'tester4', name: 'Tester 4', role: 'Kunde', goal: 'Reha / Physio', pin: '1004' },
-  { id: 'tester5', name: 'Tester 5', role: 'Kunde', goal: 'Athletik', pin: '1005' },
+  { id: 'coach', name: 'Ich (Coach / Eigenes Training)', role: 'Coach', pin: '9999' },
+  { id: 'cassian', name: 'Cassian', role: 'Kunde', pin: '1001' },
+  { id: 'sky', name: 'Sky', role: 'Kunde', pin: '1002' },
+  { id: 'aaron', name: 'Aaron', role: 'Kunde', pin: '1003' },
+  { id: 'pookiepavel', name: 'Pookiepavel', role: 'Kunde', pin: '1004' },
+  { id: 'celina', name: 'Celina', role: 'Kunde', pin: '1005' },
+  { id: 'tester6', name: 'Tester 6', role: 'Kunde', pin: '1006' },
+  { id: 'tester7', name: 'Tester 7', role: 'Kunde', pin: '1007' },
+  { id: 'tester8', name: 'Tester 8', role: 'Kunde', pin: '1008' },
+  { id: 'tester9', name: 'Tester 9', role: 'Kunde', pin: '1009' },
+  { id: 'tester10', name: 'Tester 10', role: 'Kunde', pin: '1010' },
 ];
 
 const INITIAL_PLANS = {
   coach: [
     { id: 'p_c1', name: 'Bankdrücken (Langhantel)', muscle: 'Brust', targetSets: 3, targetReps: '6-8', lastLog: '100 kg × 6' }
   ],
-  tester1: [
-    { id: 'p_t1_1', name: 'Kniebeuge', muscle: 'Beine', targetSets: 3, targetReps: '8-10', lastLog: 'Noch kein Eintrag' }
+  cassian: [
+    { id: 'p_cas1', name: 'Kniebeuge', muscle: 'Beine', targetSets: 3, targetReps: '8-10', lastLog: 'Noch kein Eintrag' }
   ]
 };
 
@@ -111,7 +116,7 @@ const db = getFirestore(app);
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
     try {
-      const saved = localStorage.getItem('bb_v12_session');
+      const saved = localStorage.getItem('bb_v13_session');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -128,6 +133,11 @@ export default function App() {
   const [clients, setClients] = useState(INITIAL_CLIENTS);
   const [plans, setPlans] = useState(INITIAL_PLANS);
   const [workoutLogs, setWorkoutLogs] = useState({});
+  const [activeWorkoutSets, setActiveWorkoutSets] = useState({});
+
+  const [customPlanEx, setCustomPlanEx] = useState({
+    name: '', muscle: 'Brust', targetSets: 3, targetReps: '8-10', note: ''
+  });
 
   useEffect(() => {
     try {
@@ -163,6 +173,23 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    const currentPlan = plans[selectedClient] || [];
+    setActiveWorkoutSets(prev => {
+      const nextSets = {};
+      currentPlan.forEach(item => {
+        if (prev[item.id] && prev[item.id].length > 0) {
+          nextSets[item.id] = prev[item.id];
+        } else {
+          nextSets[item.id] = Array.from({ length: Number(item.targetSets) || 3 }, () => ({
+            weight: '', reps: '', rpe: '', done: false
+          }));
+        }
+      });
+      return nextSets;
+    });
+  }, [selectedClient, plans]);
+
   const handlePinLogin = (e) => {
     e.preventDefault();
     setLoginError('');
@@ -172,7 +199,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v12_session', JSON.stringify(session));
+      localStorage.setItem('bb_v13_session', JSON.stringify(session));
       return;
     }
 
@@ -181,15 +208,15 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v12_session', JSON.stringify(session));
+      localStorage.setItem('bb_v13_session', JSON.stringify(session));
       return;
     }
 
-    setLoginError('Ungültiger PIN! (Coach: 9999, Tester: 1001-1005)');
+    setLoginError('Ungültiger PIN! (Coach: 9999, Tester: 1001-1010)');
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v12_session');
+    localStorage.removeItem('bb_v13_session');
     setAuthSession(null);
     setPinInput('');
   };
@@ -207,6 +234,81 @@ export default function App() {
     return ranks;
   }, [plans, workoutLogs, selectedClient]);
 
+  const handleAddCustomExerciseToPlan = (e) => {
+    e.preventDefault();
+    if (!customPlanEx.name.trim()) return;
+
+    const newPlanItem = {
+      id: 'plan_ex_' + Date.now(),
+      name: customPlanEx.name.trim(),
+      muscle: customPlanEx.muscle,
+      targetSets: Number(customPlanEx.targetSets) || 3,
+      targetReps: customPlanEx.targetReps || '8-10',
+      note: customPlanEx.note || '',
+      lastLog: 'Neu'
+    };
+
+    const updatedPlans = {
+      ...plans,
+      [selectedClient]: [...(plans[selectedClient] || []), newPlanItem]
+    };
+    setPlans(updatedPlans);
+    saveDataToCloud({ plans: updatedPlans });
+    setCustomPlanEx({ name: '', muscle: 'Brust', targetSets: 3, targetReps: '8-10', note: '' });
+  };
+
+  const handleRemovePlanItem = (itemId) => {
+    const updatedPlans = {
+      ...plans,
+      [selectedClient]: (plans[selectedClient] || []).filter(item => item.id !== itemId)
+    };
+    setPlans(updatedPlans);
+    saveDataToCloud({ plans: updatedPlans });
+  };
+
+  const handleSetChange = (planItemId, setIndex, field, value) => {
+    setActiveWorkoutSets(prev => {
+      const updated = [...(prev[planItemId] || [])];
+      updated[setIndex] = { ...updated[setIndex], [field]: value };
+      return { ...prev, [planItemId]: updated };
+    });
+  };
+
+  const toggleSetDone = (planItemId, setIndex) => {
+    setActiveWorkoutSets(prev => {
+      const updated = [...(prev[planItemId] || [])];
+      updated[setIndex] = { ...updated[setIndex], done: !updated[setIndex].done };
+      return { ...prev, [planItemId]: updated };
+    });
+  };
+
+  const finishWorkout = () => {
+    const currentPlan = plans[selectedClient] || [];
+    if (currentPlan.length === 0) return alert('Keine Übungen im Plan.');
+
+    const loggedExercises = currentPlan.map(item => ({
+      id: item.id,
+      name: item.name,
+      sets: (activeWorkoutSets[item.id] || []).filter(s => s.done || s.weight || s.reps)
+    }));
+
+    const newLog = {
+      id: 'w_' + Date.now(),
+      date: new Date().toISOString().split('T')[0],
+      exercises: loggedExercises
+    };
+
+    const updatedLogs = {
+      ...workoutLogs,
+      [selectedClient]: [newLog, ...(workoutLogs[selectedClient] || [])]
+    };
+
+    setWorkoutLogs(updatedLogs);
+    saveDataToCloud({ workoutLogs: updatedLogs });
+    alert('Training gespeichert! +5 Wochen-Bonus gutgeschrieben.');
+    setActiveTab('ranks');
+  };
+
   if (!authSession) {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4 font-sans">
@@ -214,7 +316,7 @@ export default function App() {
           <div className="flex flex-col items-center text-center space-y-2">
             <div className="w-16 h-16 rounded-2xl bg-violet-600 flex items-center justify-center text-4xl shadow-xl">🐻</div>
             <h1 className="text-2xl font-black text-white pt-2">BIZEPS BÄR</h1>
-            <p className="text-xs text-zinc-400">Gib deinen PIN ein (Coach: <code className="text-violet-400 font-bold">9999</code>)</p>
+            <p className="text-xs text-zinc-400">PIN eingeben (Coach: <code className="text-violet-400 font-bold">9999</code> | Cassian: <code className="text-violet-400 font-bold">1001</code>)</p>
           </div>
           <form onSubmit={handlePinLogin} className="space-y-4">
             <input
@@ -235,34 +337,63 @@ export default function App() {
     );
   }
 
-  const visibleTabs = [
-    { id: 'workout', label: 'Workout-Logger', icon: Dumbbell },
-    { id: 'ranks', label: 'Muskel-Ranks (1-100)', icon: Award },
-  ];
+  const visibleTabs = isCoach
+    ? [
+        { id: 'workout', label: 'Workout-Logger', icon: Dumbbell },
+        { id: 'plans', label: 'Plan verwalten', icon: Calendar },
+        { id: 'ranks', label: 'Muskel-Ranks (1-100)', icon: Award },
+      ]
+    : [
+        { id: 'workout', label: 'Mein Training', icon: Dumbbell },
+        { id: 'ranks', label: '🏆 Meine Muskel-Ranks', icon: Award },
+      ];
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans">
       <header className="border-b border-zinc-800 bg-zinc-900/90 px-4 py-3 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
+        <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center text-xl">🐻</div>
             <div>
-              <h1 className="text-lg font-black text-white">BIZEPS BÄR</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-black text-white">BIZEPS BÄR</h1>
+                {isCoach && <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-bold">COACH</span>}
+              </div>
               <span className="text-[11px] text-emerald-400">{syncStatus}</span>
             </div>
           </div>
-          <button onClick={handleLogout} className="px-3 py-1.5 rounded-xl bg-zinc-800 text-xs text-zinc-300">
-            Abmelden
-          </button>
+
+          <div className="flex items-center gap-2">
+            {isCoach && (
+              <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5">
+                <Users className="w-4 h-4 text-violet-400" />
+                <select
+                  value={selectedClient}
+                  onChange={(e) => setSelectedClient(e.target.value)}
+                  className="bg-transparent text-sm font-semibold text-white focus:outline-none"
+                >
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id} className="bg-zinc-900 text-white">
+                      {c.name} (PIN: {c.pin})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <button onClick={handleLogout} className="px-3 py-1.5 rounded-xl bg-zinc-800 text-xs text-zinc-300">
+              Sperren
+            </button>
+          </div>
         </div>
-        <div className="max-w-7xl mx-auto mt-3 flex gap-2">
+
+        <div className="max-w-7xl mx-auto mt-3 flex gap-2 overflow-x-auto pb-1">
           {visibleTabs.map(tab => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap ${
                   activeTab === tab.id ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400'
                 }`}
               >
@@ -274,30 +405,129 @@ export default function App() {
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 space-y-6">
+        {/* RANKS TAB */}
         {activeTab === 'ranks' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {MUSCLE_GROUPS.map(mg => {
-              const rank = muscleRanks[mg.id] || { rankTitle: 'Holz 🪵', points: 1 };
-              return (
-                <div key={mg.id} className={`p-5 rounded-2xl border ${rank.color} shadow-lg space-y-3`}>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs uppercase font-bold">{mg.label}</span>
-                    <span className="text-sm font-black px-2.5 py-1 rounded-full bg-black/40">{rank.points} / 100 Pkt</span>
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-white">Ranks für: {currentClientObj?.name}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {MUSCLE_GROUPS.map(mg => {
+                const rank = muscleRanks[mg.id] || { rankTitle: 'Holz 🪵', points: 1 };
+                return (
+                  <div key={mg.id} className={`p-5 rounded-2xl border ${rank.color} shadow-lg space-y-3`}>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs uppercase font-bold">{mg.label}</span>
+                      <span className="text-sm font-black px-2.5 py-1 rounded-full bg-black/40">{rank.points} / 100 Pkt</span>
+                    </div>
+                    <div className="text-2xl font-black text-white">{rank.rankTitle}</div>
+                    <div className="w-full bg-black/40 h-2.5 rounded-full overflow-hidden">
+                      <div className="bg-gradient-to-r from-violet-500 to-amber-400 h-full" style={{ width: `${rank.points}%` }} />
+                    </div>
                   </div>
-                  <div className="text-2xl font-black text-white">{rank.rankTitle}</div>
-                  <div className="w-full bg-black/40 h-2.5 rounded-full overflow-hidden">
-                    <div className="bg-gradient-to-r from-violet-500 to-amber-400 h-full" style={{ width: `${rank.points}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
 
+        {/* WORKOUT TAB */}
         {activeTab === 'workout' && (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 text-center space-y-3">
-            <h2 className="text-lg font-bold text-white">Workout-Bereich aktiv</h2>
-            <p className="text-xs text-zinc-400">Das Ranksystem und die Cloud-Verbindung funktionieren einwandfrei.</p>
+          <div className="space-y-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex justify-between items-center flex-wrap gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-white">Workout – {currentClientObj?.name}</h2>
+                <p className="text-xs text-zinc-400">Trage deine Sätze ein und speichere das Training.</p>
+              </div>
+              <button onClick={finishWorkout} className="px-4 py-2.5 rounded-xl bg-violet-600 text-white font-semibold text-sm">
+                Training abschließen & speichern
+              </button>
+            </div>
+
+            {(plans[selectedClient] || []).length === 0 ? (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center text-zinc-400 text-sm">
+                Keine Übungen im Plan für diesen Tester. Wechsel als Coach in den Tab „Plan verwalten“, um Übungen hinzuzufügen!
+              </div>
+            ) : (
+              (plans[selectedClient] || []).map((planItem, idx) => {
+                const sets = activeWorkoutSets[planItem.id] || [];
+                return (
+                  <div key={planItem.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-white">{idx + 1}. {planItem.name} ({planItem.muscle})</span>
+                      <span className="text-xs text-violet-300 bg-violet-950 px-2.5 py-1 rounded-lg">Ziel: {planItem.targetSets} Sätze</span>
+                    </div>
+                    <div className="space-y-2">
+                      {sets.map((s, sIdx) => (
+                        <div key={sIdx} className="grid grid-cols-12 gap-2 items-center bg-zinc-800/40 p-2 rounded-xl">
+                          <span className="col-span-2 text-xs font-bold text-zinc-400">#{sIdx + 1}</span>
+                          <input
+                            type="number" placeholder="kg" value={s.weight}
+                            onChange={(e) => handleSetChange(planItem.id, sIdx, 'weight', e.target.value)}
+                            className="col-span-4 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-sm text-white"
+                          />
+                          <input
+                            type="number" placeholder="Wdh" value={s.reps}
+                            onChange={(e) => handleSetChange(planItem.id, sIdx, 'reps', e.target.value)}
+                            className="col-span-4 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-sm text-white"
+                          />
+                          <button
+                            onClick={() => toggleSetDone(planItem.id, sIdx)}
+                            className={`col-span-2 h-9 rounded-lg flex items-center justify-center ${s.done ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* PLANS TAB (NUR FÜR COACH) */}
+        {isCoach && activeTab === 'plans' && (
+          <div className="space-y-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+              <h2 className="text-lg font-bold text-white">Trainingsplan erstellen für {currentClientObj?.name}</h2>
+              <form onSubmit={handleAddCustomExerciseToPlan} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    type="text" required placeholder="Übungsname (z.B. Bankdrücken)"
+                    value={customPlanEx.name} onChange={e => setCustomPlanEx({ ...customPlanEx, name: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-sm text-white"
+                  />
+                  <select
+                    value={customPlanEx.muscle} onChange={e => setCustomPlanEx({ ...customPlanEx, muscle: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-sm text-white"
+                  >
+                    {MUSCLE_GROUPS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                </div>
+                <button type="submit" className="px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold">
+                  + Übung zum Plan hinzufügen
+                </button>
+              </form>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
+              <h3 className="text-sm font-bold text-white">Aktueller Plan von {currentClientObj?.name}</h3>
+              {(plans[selectedClient] || []).length === 0 ? (
+                <p className="text-xs text-zinc-500">Noch keine Übungen eingetragen.</p>
+              ) : (
+                (plans[selectedClient] || []).map(item => (
+                  <div key={item.id} className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 flex justify-between items-center">
+                    <div>
+                      <span className="font-bold text-white text-sm">{item.name}</span>
+                      <span className="text-xs text-violet-300 ml-2">({item.muscle})</span>
+                    </div>
+                    <button onClick={() => handleRemovePlanItem(item.id)} className="p-2 rounded-lg bg-zinc-800 text-rose-400">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
       </main>
