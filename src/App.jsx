@@ -113,7 +113,7 @@ const db = getFirestore(app);
 export default function App() {
   const [authSession, setAuthSession] = useState(() => {
     try {
-      const saved = localStorage.getItem('bb_v18_session');
+      const saved = localStorage.getItem('bb_v19_session');
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
@@ -192,7 +192,7 @@ export default function App() {
       const session = { role: 'coach', clientId: 'coach' };
       setAuthSession(session);
       setSelectedClient('coach');
-      localStorage.setItem('bb_v18_session', JSON.stringify(session));
+      localStorage.setItem('bb_v19_session', JSON.stringify(session));
       return;
     }
 
@@ -201,7 +201,7 @@ export default function App() {
       const session = { role: 'client', clientId: matchedClient.id };
       setAuthSession(session);
       setSelectedClient(matchedClient.id);
-      localStorage.setItem('bb_v18_session', JSON.stringify(session));
+      localStorage.setItem('bb_v19_session', JSON.stringify(session));
       return;
     }
 
@@ -209,7 +209,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('bb_v18_session');
+    localStorage.removeItem('bb_v19_session');
     setAuthSession(null);
     setPinInput('');
   };
