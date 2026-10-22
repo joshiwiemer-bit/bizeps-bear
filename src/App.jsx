@@ -56,7 +56,6 @@ function calculateMuscleRank(clientPlans = [], clientLogs = [], muscleId = '') {
         const planItem = clientPlans.find(p => p.id === ex.id || (p.name && ex.name && p.name.toLowerCase() === ex.name.toLowerCase()));
         const muscles = planItem?.muscles || [planItem?.muscle || 'Brust'];
         
-        // Wenn die Muskelgruppe in der Übung vorkommt, Punkte vergeben
         if (muscles.includes(muscleId)) {
           ex?.sets?.forEach(s => {
             const w = parseFloat(s?.weight);
